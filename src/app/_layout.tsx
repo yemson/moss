@@ -1,16 +1,53 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import React from 'react';
-import { useColorScheme } from 'react-native';
-
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { HeroUINativeProvider } from "heroui-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Stack } from "expo-router";
+import { useUniwind } from "uniwind";
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import { useMemo } from "react";
+import "../global.css";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { theme } = useUniwind();
+  const isDarkMode = theme === "dark";
+  const backgroundColor = isDarkMode ? "#010101" : "#F2F2F7";
+  const navigationTheme = useMemo(
+    () =>
+      isDarkMode
+        ? {
+            ...DarkTheme,
+            colors: {
+              ...DarkTheme.colors,
+              background: backgroundColor,
+              card: backgroundColor,
+            },
+          }
+        : {
+            ...DefaultTheme,
+            colors: {
+              ...DefaultTheme.colors,
+              background: backgroundColor,
+              card: backgroundColor,
+            },
+          },
+    [backgroundColor, isDarkMode],
+  );
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <HeroUINativeProvider>
+        <ThemeProvider value={navigationTheme}>
+          <Stack
+            screenOptions={{
+              headerTransparent: true,
+              contentStyle: { backgroundColor },
+            }}
+          />
+        </ThemeProvider>
+      </HeroUINativeProvider>
+    </GestureHandlerRootView>
   );
 }
