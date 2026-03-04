@@ -1,11 +1,25 @@
-import { ScrollView, Pressable, Alert, Text, View } from "react-native";
+import {
+  ScrollView,
+  Pressable,
+  Alert,
+  Text,
+  View,
+  Vibration,
+} from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { SettingsIcon } from "lucide-uniwind";
+import * as Haptics from "expo-haptics";
 
 export default function Screen() {
   const headerHeight = useHeaderHeight();
   const router = useRouter();
+
+  const handleSettingsPressIn = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {
+      Vibration.vibrate(10);
+    });
+  };
 
   return (
     <>
@@ -15,6 +29,7 @@ export default function Screen() {
         <Stack.Toolbar.View>
           <View style={{ width: 38, height: 38 }}>
             <Pressable
+              onPressIn={handleSettingsPressIn}
               onPress={() => router.navigate("/settings")}
               hitSlop={8}
               className="flex-1 items-center justify-center"

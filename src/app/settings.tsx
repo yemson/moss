@@ -1,18 +1,65 @@
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Pressable, ScrollView, Text, Alert, View } from "react-native";
+import { Stack, useRouter } from "expo-router";
+import {
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  Vibration,
+  useColorScheme,
+} from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { ThemeModeTabs } from "@/components/theme-mode-tabs";
 import { ListGroup, Separator } from "heroui-native";
-import { MonitorIcon, SunIcon } from "lucide-uniwind";
+import { SunIcon } from "lucide-uniwind";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 
 export default function DetailsScreen() {
   const headerHeight = useHeaderHeight();
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const iconColor = colorScheme === "dark" ? "#FFFFFF" : "#000000";
+
+  const handleBackPressIn = () => {
+    void Haptics.selectionAsync().catch(() => {
+      Vibration.vibrate(10);
+    });
+  };
+
+  const handleBackPress = () => {
+    router.back();
+  };
 
   return (
     <>
-      <Stack.Screen.Title asChild>
-        <Text className="text-lg font-medium">설정</Text>
-      </Stack.Screen.Title>
+      <Stack.Screen
+        options={{
+          title: "설정",
+          headerBackVisible: false,
+        }}
+      />
+
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.View>
+          <View style={{ width: 38, height: 38 }}>
+            <Pressable
+              onPressIn={handleBackPressIn}
+              onPress={handleBackPress}
+              hitSlop={8}
+              className="flex-1 items-center justify-center"
+            >
+              <Image
+                source="sf:chevron.left"
+                style={{
+                  width: 18,
+                  height: 18,
+                  tintColor: iconColor,
+                }}
+              />
+            </Pressable>
+          </View>
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
 
       <ScrollView
         style={{ paddingTop: headerHeight + 15 }}
