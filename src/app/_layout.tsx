@@ -37,17 +37,17 @@ export default function TabLayout() {
   );
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <HeroUINativeProvider>
-        <ThemeProvider value={navigationTheme}>
+    <ThemeProvider value={navigationTheme}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor }}>
+        <HeroUINativeProvider>
           <Stack
             screenOptions={{
               headerTransparent: true,
               contentStyle: { backgroundColor },
             }}
           />
-        </ThemeProvider>
-      </HeroUINativeProvider>
-    </GestureHandlerRootView>
+        </HeroUINativeProvider>
+      </GestureHandlerRootView>
+    </ThemeProvider>
   );
 }
