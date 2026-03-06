@@ -5,14 +5,13 @@ import { View } from "react-native";
 
 type ThemeMode = "light" | "dark" | "system";
 
-const THEME_TABS: Array<{
+const THEME_TABS: {
   value: ThemeMode;
-  label: string;
   Icon: typeof SunIcon;
-}> = [
-  { value: "light", label: "Light", Icon: SunIcon },
-  { value: "dark", label: "Dark", Icon: MoonIcon },
-  { value: "system", label: "System", Icon: MonitorIcon },
+}[] = [
+  { value: "light", Icon: SunIcon },
+  { value: "dark", Icon: MoonIcon },
+  { value: "system", Icon: MonitorIcon },
 ];
 
 const isThemeMode = (value: string): value is ThemeMode => {
@@ -43,7 +42,7 @@ export function ThemeModeTabs() {
       >
         <Tabs.List>
           <Tabs.Indicator />
-          {THEME_TABS.map(({ value, label, Icon }) => (
+          {THEME_TABS.map(({ value, Icon }) => (
             <Tabs.Trigger key={value} value={value}>
               {({ isSelected }) => (
                 <>

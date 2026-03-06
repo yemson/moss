@@ -582,7 +582,7 @@ export async function listSubscriptions(
   const database = await getDatabase();
 
   const clauses: string[] = [];
-  const params: Array<string | number> = [];
+  const params: (string | number)[] = [];
 
   if (options.categoryId) {
     clauses.push("s.categoryId = ?");
@@ -700,7 +700,7 @@ export async function updateSubscription(
   const database = await getDatabase();
 
   const sets: string[] = [];
-  const params: Array<string | number | null> = [];
+  const params: (string | number | null)[] = [];
 
   if (input.name !== undefined) {
     const trimmedName = input.name.trim();

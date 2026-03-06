@@ -1,4 +1,5 @@
 import { HeroUINativeProvider } from "heroui-native";
+import type { HeroUINativeConfig } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack } from "expo-router";
 import { useUniwind } from "uniwind";
@@ -9,6 +10,13 @@ import {
 } from "@react-navigation/native";
 import { useMemo } from "react";
 import "../global.css";
+
+const config: HeroUINativeConfig = {
+  textProps: {
+    minimumFontScale: 0.5,
+    maxFontSizeMultiplier: 1.5,
+  },
+};
 
 export default function TabLayout() {
   const { theme } = useUniwind();
@@ -39,13 +47,22 @@ export default function TabLayout() {
   return (
     <ThemeProvider value={navigationTheme}>
       <GestureHandlerRootView style={{ flex: 1, backgroundColor }}>
-        <HeroUINativeProvider>
+        <HeroUINativeProvider config={config}>
           <Stack
             screenOptions={{
               headerTransparent: true,
               contentStyle: { backgroundColor },
+              headerStyle: { backgroundColor: "transparent" },
             }}
-          />
+          >
+            <Stack.Screen
+              name="subscriptions/new"
+              options={{
+                title: "구독 추가",
+                presentation: "modal",
+              }}
+            />
+          </Stack>
         </HeroUINativeProvider>
       </GestureHandlerRootView>
     </ThemeProvider>
