@@ -13,6 +13,7 @@ import {
   formatYmd,
   billingCycleLabelMap,
 } from "@/features/subscriptions/utils/format";
+import { useCurrencyDisplayMode } from "@/features/settings/model/settings-store";
 import { resolveId } from "@/features/subscriptions/utils/editor";
 import { hapticImpactLight } from "@/shared/lib/haptics";
 import { PencilIcon } from "lucide-uniwind";
@@ -36,6 +37,7 @@ function DetailRow({ label, value }: DetailRowProps) {
 export default function SubscriptionDetailScreen() {
   const headerHeight = useHeaderHeight();
   const router = useRouter();
+  const displayMode = useCurrencyDisplayMode();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const subscriptionId = useMemo(() => resolveId(params.id), [params.id]);
   const [subscription, setSubscription] =
@@ -124,7 +126,11 @@ export default function SubscriptionDetailScreen() {
                 {subscription.name}
               </Card.Title>
               <Card.Description className="text-sm text-neutral-500 dark:text-neutral-400">
-                {formatAmount(subscription.amount, subscription.currency)}
+                {formatAmount(
+                  subscription.amount,
+                  subscription.currency,
+                  displayMode,
+                )}
               </Card.Description>
             </Card.Header>
 

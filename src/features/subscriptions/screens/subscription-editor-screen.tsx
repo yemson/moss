@@ -34,6 +34,9 @@ export interface SubscriptionEditorScreenProps {
   subscriptionId?: string | null;
 }
 
+const IOS_SPINNER_PICKER_HEIGHT = 216;
+const IOS_SPINNER_PICKER_WIDTH = 320;
+
 export default function SubscriptionEditorScreen({
   mode,
   subscriptionId,
@@ -42,6 +45,12 @@ export default function SubscriptionEditorScreen({
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const { width: screenWidth } = useWindowDimensions();
+  const billingDatePickerHeight =
+    Platform.OS === "ios" ? IOS_SPINNER_PICKER_HEIGHT : 180;
+  const billingDatePickerWidth = Math.min(
+    screenWidth - 60,
+    IOS_SPINNER_PICKER_WIDTH,
+  );
 
   const {
     state: {
@@ -354,13 +363,20 @@ export default function SubscriptionEditorScreen({
                           </Dialog.Description>
                         </View>
 
-                        <View className="items-center">
+                        <View
+                          className="items-center justify-center overflow-hidden"
+                          style={{ minHeight: billingDatePickerHeight }}
+                        >
                           <DateTimePicker
                             value={billingDateDraft}
                             mode="date"
                             display="spinner"
                             locale="ko-KR"
                             onChange={handleBillingDateChange}
+                            style={{
+                              height: billingDatePickerHeight,
+                              width: billingDatePickerWidth,
+                            }}
                           />
                         </View>
 

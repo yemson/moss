@@ -14,9 +14,10 @@ import ReanimatedSwipeable, {
 import type { SubscriptionWithCategory } from "@/features/subscriptions/model/subscription-store";
 import {
   billingCycleLabelMap,
-  formatAmount,
+  formatAmountParts,
   formatYmd,
 } from "@/features/subscriptions/utils/format";
+import { useCurrencyDisplayMode } from "@/features/settings/model/settings-store";
 import { Card, PressableFeedback } from "heroui-native";
 import { hapticImpactLight } from "@/shared/lib/haptics";
 
@@ -168,6 +169,16 @@ export function SubscriptionCard({
   onSwipeableClose,
 }: SubscriptionCardProps) {
   const hasSwipeActions = Boolean(onTogglePin || onEdit || onDelete);
+  const displayMode = useCurrencyDisplayMode();
+  const amountParts = formatAmountParts(
+    subscription.amount,
+    subscription.currency,
+    displayMode,
+  );
+  const currencyLabelClassName =
+    amountParts.currencyLabelPosition === "suffix"
+      ? "text-base font-semibold text-black/70 dark:text-white/70 ml-0.5"
+      : "text-base font-semibold text-black dark:text-white mr-0.5";
 
   const handlePress = () => {
     hapticImpactLight();
@@ -288,38 +299,62 @@ export function SubscriptionCard({
       >
         <PressableFeedback.Highlight />
         <Card variant="default" className="gap-3 p-4 shadow-none">
-          <Card.Body className="gap-3">
+          <Card.Body className="gap-1.5">
             <View className="flex-row items-start justify-between gap-3">
               <Card.Title className="flex-1 text-lg font-semibold text-black dark:text-white">
                 {subscription.name}
               </Card.Title>
-              <Card.Title className="text-base font-semibold text-black dark:text-white">
-                {formatAmount(subscription.amount, subscription.currency)}
-              </Card.Title>
+              <View
+                className="flex-row items-baseline"
+                style={{
+                  columnGap:
+                    amountParts.currencyLabelPosition === "suffix" ? 2 : 0,
+                }}
+              >
+                {amountParts.currencyLabelPosition === "prefix" ? (
+                  <Text className={currencyLabelClassName}>
+                    {amountParts.currencyLabel}
+                  </Text>
+                ) : null}
+                <Text className="text-base font-semibold text-black dark:text-white">
+                  {amountParts.value}
+                </Text>
+                {amountParts.currencyLabelPosition === "suffix" ? (
+                  <Text className={currencyLabelClassName}>
+                    {amountParts.currencyLabel}
+                  </Text>
+                ) : null}
+              </View>
             </View>
 
             <View className="flex-row items-center justify-between gap-3">
               <Card.Description className="text-sm text-neutral-500 dark:text-neutral-400">
-                {subscription.categoryName} ·{" "}
-                {billingCycleLabelMap[subscription.billingCycle]}
+                {subscription.categoryName}
               </Card.Description>
               <Card.Description className="text-sm text-neutral-500 dark:text-neutral-400">
-                결제일 {formatYmd(subscription.billingDate)}
+                {billingCycleLabelMap[subscription.billingCycle]}
               </Card.Description>
             </View>
           </Card.Body>
 
-          <View className="h-px bg-black/5 dark:bg-white/10" />
+          <View className="h-px bg-black/5 dark:bg-white/5" />
 
-          <Card.Footer className="pt-0 flex-row items-center justify-between">
-            <Card.Description className="text-sm text-black/70 dark:text-white/70">
-              다음 청구일 {formatYmd(subscription.nextBillingDate)}
-            </Card.Description>
+          <Card.Footer
+            className="pt-0 flex-row items-center"
+            style={{
+              justifyContent: subscription.isPinned
+                ? "space-between"
+                : "flex-end",
+            }}
+          >
             {subscription.isPinned ? (
               <Text className="text-xs font-semibold text-emerald-500">
                 고정됨
               </Text>
             ) : null}
+            <Card.Description className="text-sm text-black/70 dark:text-white/70">
+              다음 청구일 {formatYmd(subscription.nextBillingDate)}
+            </Card.Description>
           </Card.Footer>
         </Card>
       </PressableFeedback>

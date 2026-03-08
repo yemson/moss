@@ -4,6 +4,7 @@ import { ScrollView, Text, View } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { ListGroup, Separator } from "heroui-native";
 import { BellIcon, CreditCardIcon, SunIcon } from "lucide-uniwind";
+import { CurrencyDisplayTabs } from "@/features/settings/components/currency-display-tabs";
 import { ThemeModeTabs } from "@/features/settings/components/theme-mode-tabs";
 
 interface SettingItem {
@@ -37,6 +38,11 @@ const SECTIONS: SettingSection[] = [
     id: "billing",
     title: "결제",
     items: [
+      {
+        id: "currency-display",
+        title: "금액 표기",
+        suffix: <CurrencyDisplayTabs />,
+      },
       {
         id: "payment",
         title: "결제 수단",
