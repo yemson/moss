@@ -103,7 +103,9 @@ export default function SettingsRoute() {
         ))}
 
         <View className="flex justify-center items-center mt-14">
-          <Text className="opacity-50">버전 0.0.1</Text>
+          <Text className="opacity-50 text-black dark:text-white">
+            버전 0.8.3
+          </Text>
         </View>
       </ScrollView>
     </>

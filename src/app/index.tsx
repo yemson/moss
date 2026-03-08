@@ -162,7 +162,8 @@ export default function HomeRoute() {
     <>
       <Stack.Screen
         options={{
-          title: "",
+          title: "내 구독",
+          largeTitle: true,
         }}
       />
 
@@ -177,7 +178,7 @@ export default function HomeRoute() {
 
               router.navigate("/settings");
             }}
-            hitSlop={8}
+            hitSlop={10}
             className="w-8 h-8 items-center justify-center"
           >
             <SettingsIcon className="text-black dark:text-white" />
@@ -212,7 +213,7 @@ export default function HomeRoute() {
         )}
         onScrollBeginDrag={closeOpenedSwipeable}
         ItemSeparatorComponent={() => <View className="h-3" />}
-        style={{ flex: 1, width: "100%", paddingHorizontal: 16 }}
+        className="flex-1 w-full px-4"
         contentContainerStyle={{
           paddingTop: headerHeight + 15,
           paddingBottom: 120,

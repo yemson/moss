@@ -4,15 +4,19 @@ import { Pin, PinOff, Trash2 } from "lucide-react-native";
 import Reanimated, {
   Extrapolation,
   interpolate,
+  runOnJS,
   type SharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
 } from "react-native-reanimated";
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
-import { Card } from "heroui-native";
+import { Card, Separator } from "heroui-native";
 import { useAppSettings } from "@/lib/app-settings";
-import { hapticImpactLight } from "@/lib/haptics";
+import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
 import type { SubscriptionWithCategory } from "@/lib/subscription-store";
 import {
   billingCycleLabelMap,
@@ -20,6 +24,7 @@ import {
   formatYmd,
 } from "@/lib/subscription-format";
 import { PencilIcon } from "lucide-uniwind";
+import { clsx } from "clsx";
 
 const ACTION_BUTTON_SIZE = 48;
 const PIN_ACTION_WIDTH = ACTION_BUTTON_SIZE;
@@ -28,6 +33,32 @@ const DELETE_ACTION_WIDTH = ACTION_BUTTON_SIZE;
 const RIGHT_ACTION_GAP = 8;
 const RIGHT_ACTION_WIDTH =
   EDIT_ACTION_WIDTH + DELETE_ACTION_WIDTH + RIGHT_ACTION_GAP;
+const ACTION_HAPTIC_THRESHOLD = 0.7;
+const ACTION_HAPTIC_RESET_THRESHOLD = 0.25;
+
+function triggerSwipeActionHaptic() {
+  hapticSelection();
+}
+
+function useSwipeActionHaptic(scale: SharedValue<number>) {
+  const isArmed = useSharedValue(true);
+
+  useAnimatedReaction(
+    () => scale.value,
+    (currentScale) => {
+      if (isArmed.value && currentScale >= ACTION_HAPTIC_THRESHOLD) {
+        isArmed.value = false;
+        runOnJS(triggerSwipeActionHaptic)();
+      } else if (
+        !isArmed.value &&
+        currentScale <= ACTION_HAPTIC_RESET_THRESHOLD
+      ) {
+        isArmed.value = true;
+      }
+    },
+    [scale],
+  );
+}
 
 interface ActionButtonProps {
   width: number;
@@ -69,20 +100,26 @@ function LeftActions({
   onTogglePin,
   swipeableMethods,
 }: LeftActionsProps) {
+  const pinScale = useDerivedValue(() =>
+    interpolate(
+      drag.value,
+      [0, PIN_ACTION_WIDTH],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
+  );
+
+  useSwipeActionHaptic(pinScale);
+
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [
         {
-          scale: interpolate(
-            drag.value,
-            [0, PIN_ACTION_WIDTH],
-            [0, 1],
-            Extrapolation.CLAMP,
-          ),
+          scale: pinScale.value,
         },
       ],
     };
-  });
+  }, [pinScale]);
 
   return (
     <Reanimated.View
@@ -122,6 +159,26 @@ function RightActions({
   onDelete,
   swipeableMethods,
 }: RightActionsProps) {
+  const editScale = useDerivedValue(() =>
+    interpolate(
+      drag.value,
+      [-RIGHT_ACTION_WIDTH, -(DELETE_ACTION_WIDTH + RIGHT_ACTION_GAP), 0],
+      [1, 0, 0],
+      Extrapolation.CLAMP,
+    ),
+  );
+  const deleteScale = useDerivedValue(() =>
+    interpolate(
+      drag.value,
+      [-DELETE_ACTION_WIDTH, 0],
+      [1, 0],
+      Extrapolation.CLAMP,
+    ),
+  );
+
+  useSwipeActionHaptic(editScale);
+  useSwipeActionHaptic(deleteScale);
+
   const editAnimatedStyle = useAnimatedStyle(() => {
     return {
       opacity: interpolate(
@@ -132,16 +189,11 @@ function RightActions({
       ),
       transform: [
         {
-          scale: interpolate(
-            drag.value,
-            [-RIGHT_ACTION_WIDTH, -(DELETE_ACTION_WIDTH + RIGHT_ACTION_GAP), 0],
-            [1, 0, 0],
-            Extrapolation.CLAMP,
-          ),
+          scale: editScale.value,
         },
       ],
     };
-  });
+  }, [drag, editScale]);
 
   const deleteAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -153,16 +205,11 @@ function RightActions({
       ),
       transform: [
         {
-          scale: interpolate(
-            drag.value,
-            [-DELETE_ACTION_WIDTH, 0],
-            [1, 0],
-            Extrapolation.CLAMP,
-          ),
+          scale: deleteScale.value,
         },
       ],
     };
-  });
+  }, [deleteScale, drag]);
 
   return (
     <Reanimated.View
@@ -232,15 +279,12 @@ export function SubscriptionCard({
   onSwipeableClose,
 }: SubscriptionCardProps) {
   const { currencyDisplayMode } = useAppSettings();
+
   const amountParts = formatAmountParts(
     subscription.amount,
     subscription.currency,
     currencyDisplayMode,
   );
-  const currencyLabelClassName =
-    amountParts.currencyLabelPosition === "suffix"
-      ? "text-base font-semibold text-black/70 dark:text-white/70 ml-0.5"
-      : "text-base font-semibold text-black dark:text-white mr-0.5";
 
   const handlePress = useCallback(() => {
     hapticImpactLight();
@@ -308,26 +352,20 @@ export function SubscriptionCard({
               <Card.Title className="flex-1 text-lg font-semibold text-black dark:text-white">
                 {subscription.name}
               </Card.Title>
-              <View
-                className="flex-row items-baseline"
-                style={{
-                  columnGap:
-                    amountParts.currencyLabelPosition === "suffix" ? 2 : 0,
-                }}
-              >
-                {amountParts.currencyLabelPosition === "prefix" ? (
-                  <Text className={currencyLabelClassName}>
+              <View className="flex-row items-baseline gap-0.5">
+                {amountParts.currencyLabelPosition === "prefix" && (
+                  <Text className="text-base font-semibold text-black dark:text-white">
                     {amountParts.currencyLabel}
                   </Text>
-                ) : null}
+                )}
                 <Text className="text-base font-semibold text-black dark:text-white">
                   {amountParts.value}
                 </Text>
-                {amountParts.currencyLabelPosition === "suffix" ? (
-                  <Text className={currencyLabelClassName}>
+                {amountParts.currencyLabelPosition === "suffix" && (
+                  <Text className="text-base font-semibold text-black dark:text-white">
                     {amountParts.currencyLabel}
                   </Text>
-                ) : null}
+                )}
               </View>
             </View>
 
@@ -341,22 +379,20 @@ export function SubscriptionCard({
             </View>
           </Card.Body>
 
-          <View className="h-px bg-black/5 dark:bg-white/5" />
+          <Separator className="opacity-50" />
 
           <Card.Footer
-            className="pt-0 flex-row items-center"
-            style={{
-              justifyContent: subscription.isPinned
-                ? "space-between"
-                : "flex-end",
-            }}
+            className={clsx(
+              "pt-0 flex-row items-center",
+              subscription.isPinned ? "justify-between" : "justify-end",
+            )}
           >
-            {subscription.isPinned ? (
+            {subscription.isPinned && (
               <Text className="text-xs font-semibold text-emerald-500">
                 고정됨
               </Text>
-            ) : null}
-            <Card.Description className="text-sm text-black/70 dark:text-white/70">
+            )}
+            <Card.Description className="text-sm text-black/50 dark:text-white/50">
               다음 청구일 {formatYmd(subscription.nextBillingDate)}
             </Card.Description>
           </Card.Footer>

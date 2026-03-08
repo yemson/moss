@@ -1,14 +1,14 @@
+import { hapticSelection } from "@/lib/haptics";
 import {
-  Keyboard,
-  KeyboardAvoidingView,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-  useWindowDimensions,
-} from "react-native";
-import { useHeaderHeight } from "@react-navigation/elements";
+  BILLING_CYCLE_OPTIONS,
+  CURRENCY_OPTIONS,
+  isBillingCycle,
+  isCurrency,
+  type SelectOption,
+} from "@/lib/subscription-editor";
+import type { BillingCycle, Currency } from "@/lib/subscription-store";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useHeaderHeight } from "@react-navigation/elements";
 import {
   Button,
   Dialog,
@@ -19,15 +19,15 @@ import {
   TextField,
 } from "heroui-native";
 import { Fragment, useRef } from "react";
-import { hapticSelection } from "@/lib/haptics";
 import {
-  BILLING_CYCLE_OPTIONS,
-  CURRENCY_OPTIONS,
-  isBillingCycle,
-  isCurrency,
-  type SelectOption,
-} from "@/lib/subscription-editor";
-import type { BillingCycle, Currency } from "@/lib/subscription-store";
+  Keyboard,
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 
 const SPINNER_PICKER_HEIGHT = 216;
 const SPINNER_PICKER_WIDTH = 320;
@@ -132,28 +132,26 @@ export function SubscriptionForm({
         keyboardDismissMode="none"
         contentContainerClassName="gap-4 pb-20"
       >
-        {isLoading ? (
+        {isLoading && (
           <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             구독 정보를 불러오는 중...
           </Text>
-        ) : null}
+        )}
 
-        {isInvalidRoute ? (
+        {isInvalidRoute && (
           <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             수정할 구독 정보를 찾을 수 없습니다.
           </Text>
-        ) : null}
+        )}
 
-        {!isLoading && !isInvalidRoute ? (
+        {!isLoading && !isInvalidRoute && (
           <>
             <TextField isRequired>
               <Text className="ml-1 font-semibold dark:text-white">
                 서비스 이름
               </Text>
               <Input
-                className="ios:shadow-none focus:border-green-500"
-                selectionColor="#22C55E"
-                cursorColor="#22C55E"
+                className="ios:shadow-none"
                 value={values.serviceName}
                 onChangeText={onServiceNameChange}
                 onFocus={(event) =>
@@ -207,9 +205,7 @@ export function SubscriptionForm({
                           value={option.value}
                           label={option.label}
                         />
-                        {index < categoryOptions.length - 1 ? (
-                          <Separator />
-                        ) : null}
+                        {index < categoryOptions.length - 1 && <Separator />}
                       </Fragment>
                     ))}
                   </Select.Content>
@@ -224,9 +220,7 @@ export function SubscriptionForm({
                     금액
                   </Text>
                   <Input
-                    className="ios:shadow-none focus:border-green-500"
-                    selectionColor="#22C55E"
-                    cursorColor="#22C55E"
+                    className="ios:shadow-none"
                     value={values.amount}
                     onChangeText={onAmountChange}
                     onFocus={(event) =>
@@ -274,9 +268,7 @@ export function SubscriptionForm({
                             value={option.value}
                             label={option.label}
                           />
-                          {index < CURRENCY_OPTIONS.length - 1 ? (
-                            <Separator />
-                          ) : null}
+                          {index < CURRENCY_OPTIONS.length - 1 && <Separator />}
                         </Fragment>
                       ))}
                     </Select.Content>
@@ -322,9 +314,7 @@ export function SubscriptionForm({
                       <View className="mb-3 gap-1">
                         <Dialog.Title>결제일 선택</Dialog.Title>
                         <Dialog.Description>
-                          {mode === "create"
-                            ? "구독을 시작한 날짜를 선택하세요."
-                            : "구독 결제일을 선택하세요."}
+                          구독을 시작한 날짜를 선택하세요.
                         </Dialog.Description>
                       </View>
 
@@ -411,9 +401,9 @@ export function SubscriptionForm({
                             value={option.value}
                             label={option.label}
                           />
-                          {index < BILLING_CYCLE_OPTIONS.length - 1 ? (
+                          {index < BILLING_CYCLE_OPTIONS.length - 1 && (
                             <Separator />
-                          ) : null}
+                          )}
                         </Fragment>
                       ))}
                     </Select.Content>
@@ -427,23 +417,17 @@ export function SubscriptionForm({
             <TextField>
               <Text className="ml-1 font-semibold dark:text-white">메모</Text>
               <TextArea
-                className="ios:shadow-none focus:border-green-500 min-h-28"
-                selectionColor="#22C55E"
-                cursorColor="#22C55E"
+                className="ios:shadow-none min-h-28"
                 value={values.memo}
                 onChangeText={onMemoChange}
                 onFocus={(event) =>
                   scrollToFocusedField(event.nativeEvent.target)
                 }
-                placeholder={
-                  mode === "create"
-                    ? "필요한 내용을 메모로 남겨두세요"
-                    : "필요하면 메모를 남겨두세요"
-                }
+                placeholder="필요한 내용을 메모로 남겨두세요"
               />
             </TextField>
           </>
-        ) : null}
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -48,7 +48,9 @@ export default function NewSubscriptionRoute() {
         }));
 
         setCategoryOptions(options);
-        setCategoryId((currentCategoryId) => currentCategoryId ?? options[0]?.value ?? null);
+        setCategoryId(
+          (currentCategoryId) => currentCategoryId ?? options[0]?.value ?? null,
+        );
       } catch (error) {
         console.error("Failed to load categories:", error);
         if (!isMounted) {
@@ -159,7 +161,7 @@ export default function NewSubscriptionRoute() {
               hitSlop={8}
               className="flex-1 items-center justify-center"
             >
-              <XIcon className="text-red-500" />
+              <XIcon className="text-black dark:text-white" />
             </Pressable>
           </View>
         </Stack.Toolbar.View>
@@ -177,7 +179,7 @@ export default function NewSubscriptionRoute() {
               hitSlop={8}
               className={`flex-1 items-center justify-center ${saveDisabled ? "opacity-50" : ""}`}
             >
-              <CheckIcon className="text-green-500" />
+              <CheckIcon className="text-emerald-500" />
             </Pressable>
           </View>
         </Stack.Toolbar.View>

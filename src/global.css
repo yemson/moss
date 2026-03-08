@@ -12,17 +12,17 @@
 @source '../node_modules/heroui-native/lib';
 
 @layer theme {
-  :root {
-    @variant light {
-        --accent: #22c55e;
-        --accent-foreground: #ffffff;
-        --focus: #22c55e;
-    }
+    :root {
+        @variant light {
+            --accent: #10b981; /* emerald-500 */
+            --accent-foreground: #ffffff;
+            --focus: #10b981;
+        }
 
-    @variant dark {
-      --accent: #22c55e;
-      --accent-foreground: #052e16;
-      --focus: #22c55e;
+        @variant dark {
+            --accent: #10b981; /* emerald-500 */
+            --accent-foreground: #022c22; /* emerald-950 */
+            --focus: #10b981;
+        }
     }
-  }
 }
