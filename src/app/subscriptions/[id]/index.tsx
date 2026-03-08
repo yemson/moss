@@ -41,25 +41,20 @@ export default function SubscriptionDetailRoute() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const subscriptionId = resolveId(params.id);
   const [subscription, setSubscription] =
-    useState<SubscriptionWithCategory | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+    useState<SubscriptionWithCategory | null | undefined>(undefined);
 
   const loadSubscription = useCallback(async () => {
     if (!subscriptionId) {
       setSubscription(null);
-      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
     try {
       const detail = await getSubscriptionById(subscriptionId);
       setSubscription(detail);
     } catch (error) {
       console.error("Failed to load subscription detail:", error);
-      setSubscription(null);
-    } finally {
-      setIsLoading(false);
+      setSubscription((currentSubscription) => currentSubscription ?? null);
     }
   }, [subscriptionId]);
 
@@ -101,25 +96,19 @@ export default function SubscriptionDetailRoute() {
         className="flex-1 px-4"
         contentContainerStyle={{ paddingBottom: 48 }}
       >
-        {isLoading ? (
-          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-            구독 정보를 불러오는 중...
-          </Text>
-        ) : null}
-
-        {!isLoading && !subscriptionId ? (
+        {!subscriptionId ? (
           <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             유효하지 않은 구독입니다.
           </Text>
         ) : null}
 
-        {!isLoading && subscriptionId && !subscription ? (
+        {subscriptionId && subscription === null ? (
           <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             구독 정보를 찾을 수 없습니다.
           </Text>
         ) : null}
 
-        {!isLoading && subscription ? (
+        {subscription ? (
           <Card variant="default" className="p-4 gap-4 shadow-none">
             <Card.Header className="gap-1">
               <Card.Title className="text-xl font-semibold text-black dark:text-white">

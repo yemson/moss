@@ -2,12 +2,13 @@ import { Alert, Pressable, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { PlusIcon, SettingsIcon } from "lucide-uniwind";
 import { Button } from "heroui-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { SubscriptionCard } from "@/components/subscriptions/subscription-card";
+import { SubscriptionSummaryCard } from "@/components/subscriptions/subscription-summary-card";
 import { hapticImpactLight } from "@/lib/haptics";
 import {
   deleteSubscription,
@@ -24,23 +25,20 @@ export default function HomeRoute() {
   const headerHeight = useHeaderHeight();
   const router = useRouter();
   const [subscriptions, setSubscriptions] = useState<
-    SubscriptionWithCategory[]
-  >([]);
-  const [isLoading, setIsLoading] = useState(true);
+    SubscriptionWithCategory[] | null
+  >(null);
   const swipeableMapRef = useRef<
     Record<string, { current: SwipeableMethods | null }>
   >({});
   const openedSwipeableIdRef = useRef<string | null>(null);
 
   const loadSubscriptions = useCallback(async () => {
-    setIsLoading(true);
     try {
       const data = await listSubscriptions({ isActive: true });
       setSubscriptions(data);
     } catch (error) {
       console.error("Failed to load subscriptions:", error);
-    } finally {
-      setIsLoading(false);
+      setSubscriptions((currentSubscriptions) => currentSubscriptions ?? []);
     }
   }, []);
 
@@ -150,20 +148,11 @@ export default function HomeRoute() {
     </View>
   );
 
-  const renderLoadingState = () => (
-    <View className="px-1 py-3">
-      <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-        구독 목록 불러오는 중...
-      </Text>
-    </View>
-  );
-
   return (
     <>
       <Stack.Screen
         options={{
-          title: "내 구독",
-          largeTitle: true,
+          title: "",
         }}
       />
 
@@ -187,7 +176,7 @@ export default function HomeRoute() {
       </Stack.Toolbar>
 
       <Animated.FlatList
-        data={subscriptions}
+        data={subscriptions ?? []}
         keyExtractor={(item) => item.id}
         itemLayoutAnimation={PIN_REORDER_TRANSITION}
         skipEnteringExitingAnimations
@@ -213,6 +202,7 @@ export default function HomeRoute() {
         )}
         onScrollBeginDrag={closeOpenedSwipeable}
         ItemSeparatorComponent={() => <View className="h-3" />}
+        style={{ flex: 1, width: "100%", paddingHorizontal: 16 }}
         className="flex-1 w-full px-4"
         contentContainerStyle={{
           paddingTop: headerHeight + 15,
@@ -220,11 +210,15 @@ export default function HomeRoute() {
           flexGrow: 1,
         }}
         ListHeaderComponent={
-          <Text className="mb-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
-            구독 목록
-          </Text>
+          <>
+            <SubscriptionSummaryCard subscriptions={subscriptions ?? []} />
+
+            <Text className="mb-3 mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
+              구독 목록
+            </Text>
+          </>
         }
-        ListEmptyComponent={isLoading ? renderLoadingState : renderEmptyState}
+        ListEmptyComponent={subscriptions === null ? null : renderEmptyState}
       />
 
       <Button
@@ -237,7 +231,7 @@ export default function HomeRoute() {
           router.navigate("/subscriptions/new");
         }}
         isIconOnly
-        className="absolute right-5 bottom-10 w-16 h-16 rounded-full"
+        className="absolute right-5 bottom-10 w-16 h-16 rounded-full shadow-2xl"
       >
         <PlusIcon size={28} className="text-white" />
       </Button>

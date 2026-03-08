@@ -1,4 +1,4 @@
-import { Alert, Keyboard, Pressable, View } from "react-native";
+import { Alert, Keyboard, Pressable, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { CheckIcon } from "lucide-uniwind";
@@ -14,6 +14,7 @@ import {
 import {
   getSubscriptionById,
   listCategories,
+  type SubscriptionWithCategory,
   updateSubscription,
   type BillingCycle,
   type Currency,
@@ -23,6 +24,9 @@ export default function EditSubscriptionRoute() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const subscriptionId = resolveId(params.id);
+  const [loadedSubscription, setLoadedSubscription] = useState<
+    SubscriptionWithCategory | null | undefined
+  >(undefined);
   const [serviceName, setServiceName] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("KRW");
@@ -34,22 +38,19 @@ export default function EditSubscriptionRoute() {
   const [billingDateValue, setBillingDateValue] = useState(new Date());
   const [billingDateDraft, setBillingDateDraft] = useState(new Date());
   const [isBillingDateDialogOpen, setIsBillingDateDialogOpen] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isInvalidRoute, setIsInvalidRoute] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadEditorData = async () => {
       if (!subscriptionId) {
-        setIsInvalidRoute(true);
-        setIsInitialLoading(false);
+        setLoadedSubscription(null);
         return;
       }
 
       try {
-        const [categories, subscription] = await Promise.all([
+        const [categoriesResult, subscriptionResult] = await Promise.allSettled([
           listCategories(),
           getSubscriptionById(subscriptionId),
         ]);
@@ -58,19 +59,34 @@ export default function EditSubscriptionRoute() {
           return;
         }
 
-        if (!subscription) {
-          setIsInvalidRoute(true);
-          setIsInitialLoading(false);
+        if (categoriesResult.status === "fulfilled") {
+          const options = categoriesResult.value.map((category) => ({
+            value: category.id,
+            label: category.name,
+          }));
+
+          setCategoryOptions(options);
+        } else {
+          console.error("Failed to load categories:", categoriesResult.reason);
+        }
+
+        if (subscriptionResult.status === "rejected") {
+          console.error(
+            "Failed to load subscription editor data:",
+            subscriptionResult.reason,
+          );
+          setLoadedSubscription(null);
           return;
         }
 
-        const options = categories.map((category) => ({
-          value: category.id,
-          label: category.name,
-        }));
+        const subscription = subscriptionResult.value;
+        if (!subscription) {
+          setLoadedSubscription(null);
+          return;
+        }
+
         const billingDateAsDate = ymdToDate(subscription.billingDate);
 
-        setCategoryOptions(options);
         setCategoryId(subscription.categoryId);
         setServiceName(subscription.name);
         setAmount(String(subscription.amount));
@@ -80,18 +96,14 @@ export default function EditSubscriptionRoute() {
         setMemo(subscription.memo ?? "");
         setBillingDateValue(billingDateAsDate);
         setBillingDateDraft(billingDateAsDate);
-        setIsInvalidRoute(false);
+        setLoadedSubscription(subscription);
       } catch (error) {
         console.error("Failed to load subscription editor data:", error);
         if (!isMounted) {
           return;
         }
 
-        setIsInvalidRoute(true);
-      } finally {
-        if (isMounted) {
-          setIsInitialLoading(false);
-        }
+        setLoadedSubscription(null);
       }
     };
 
@@ -175,7 +187,8 @@ export default function EditSubscriptionRoute() {
     }
   };
 
-  const saveDisabled = isSaving || isInitialLoading || isInvalidRoute;
+  const saveDisabled =
+    isSaving || !subscriptionId || !loadedSubscription || !categoryId;
 
   return (
     <>
@@ -205,32 +218,52 @@ export default function EditSubscriptionRoute() {
         </Stack.Toolbar.View>
       </Stack.Toolbar>
 
-      <SubscriptionForm
-        mode="edit"
-        values={{
-          serviceName,
-          amount,
-          currency,
-          billingDate,
-          billingCycle,
-          memo,
-          categoryId,
-          billingDateDraft,
-          isBillingDateDialogOpen,
-        }}
-        categoryOptions={categoryOptions}
-        isLoading={isInitialLoading}
-        isInvalidRoute={isInvalidRoute}
-        onServiceNameChange={setServiceName}
-        onAmountChange={setAmount}
-        onCurrencyChange={setCurrency}
-        onBillingCycleChange={setBillingCycle}
-        onBillingDateDialogOpenChange={handleBillingDateDialogOpenChange}
-        onBillingDateDraftChange={setBillingDateDraft}
-        onBillingDateApply={handleApplyBillingDate}
-        onCategoryChange={setCategoryId}
-        onMemoChange={setMemo}
-      />
+      {!subscriptionId ? (
+        <View className="flex-1 px-4">
+          <View className="pt-28">
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+              유효하지 않은 구독입니다.
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {subscriptionId && loadedSubscription === null ? (
+        <View className="flex-1 px-4">
+          <View className="pt-28">
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+              수정할 구독 정보를 찾을 수 없습니다.
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {loadedSubscription ? (
+        <SubscriptionForm
+          mode="edit"
+          values={{
+            serviceName,
+            amount,
+            currency,
+            billingDate,
+            billingCycle,
+            memo,
+            categoryId,
+            billingDateDraft,
+            isBillingDateDialogOpen,
+          }}
+          categoryOptions={categoryOptions}
+          onServiceNameChange={setServiceName}
+          onAmountChange={setAmount}
+          onCurrencyChange={setCurrency}
+          onBillingCycleChange={setBillingCycle}
+          onBillingDateDialogOpenChange={handleBillingDateDialogOpenChange}
+          onBillingDateDraftChange={setBillingDateDraft}
+          onBillingDateApply={handleApplyBillingDate}
+          onCategoryChange={setCategoryId}
+          onMemoChange={setMemo}
+        />
+      ) : null}
     </>
   );
 }

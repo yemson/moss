@@ -29,7 +29,6 @@ export default function NewSubscriptionRoute() {
   const [billingDateValue, setBillingDateValue] = useState(new Date());
   const [billingDateDraft, setBillingDateDraft] = useState(new Date());
   const [isBillingDateDialogOpen, setIsBillingDateDialogOpen] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -58,10 +57,6 @@ export default function NewSubscriptionRoute() {
         }
 
         Alert.alert("오류", "카테고리 목록을 불러오지 못했습니다.");
-      } finally {
-        if (isMounted) {
-          setIsInitialLoading(false);
-        }
       }
     };
 
@@ -140,7 +135,7 @@ export default function NewSubscriptionRoute() {
     }
   };
 
-  const saveDisabled = isSaving || isInitialLoading;
+  const saveDisabled = isSaving || !categoryId;
 
   return (
     <>
@@ -199,7 +194,6 @@ export default function NewSubscriptionRoute() {
           isBillingDateDialogOpen,
         }}
         categoryOptions={categoryOptions}
-        isLoading={isInitialLoading}
         onServiceNameChange={setServiceName}
         onAmountChange={setAmount}
         onCurrencyChange={setCurrency}

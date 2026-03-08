@@ -17,12 +17,11 @@ import ReanimatedSwipeable, {
 import { Card, Separator } from "heroui-native";
 import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
-import type { SubscriptionWithCategory } from "@/lib/subscription-store";
-import {
-  billingCycleLabelMap,
-  formatAmountParts,
-  formatYmd,
-} from "@/lib/subscription-format";
+import type {
+  BillingCycle,
+  SubscriptionWithCategory,
+} from "@/lib/subscription-store";
+import { formatAmountParts } from "@/lib/subscription-format";
 import { PencilIcon } from "lucide-uniwind";
 import { clsx } from "clsx";
 
@@ -35,6 +34,53 @@ const RIGHT_ACTION_WIDTH =
   EDIT_ACTION_WIDTH + DELETE_ACTION_WIDTH + RIGHT_ACTION_GAP;
 const ACTION_HAPTIC_THRESHOLD = 0.7;
 const ACTION_HAPTIC_RESET_THRESHOLD = 0.25;
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function parseYmdToDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getSubscriptionInitial(name: string) {
+  const trimmedName = name.trim();
+  const firstCharacter = Array.from(trimmedName)[0] ?? "?";
+
+  return /^[a-z]$/i.test(firstCharacter)
+    ? firstCharacter.toUpperCase()
+    : firstCharacter;
+}
+
+function getRecurringBillingLabel(
+  billingDate: string,
+  billingCycle: BillingCycle,
+) {
+  const [, month, day] = billingDate.split("-");
+
+  if (billingCycle === "monthly") {
+    return `매월 ${Number(day)}일 결제`;
+  }
+
+  return `매년 ${month}.${day} 결제`;
+}
+
+function getDdayLabel(nextBillingDate: string) {
+  const today = new Date();
+  const currentDate = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+  const billingDate = parseYmdToDate(nextBillingDate);
+  const diffDays = Math.round(
+    (billingDate.getTime() - currentDate.getTime()) / ONE_DAY_IN_MS,
+  );
+
+  if (diffDays <= 0) {
+    return "오늘";
+  }
+
+  return `${diffDays}일 후`;
+}
 
 function triggerSwipeActionHaptic() {
   hapticSelection();
@@ -101,12 +147,7 @@ function LeftActions({
   swipeableMethods,
 }: LeftActionsProps) {
   const pinScale = useDerivedValue(() =>
-    interpolate(
-      drag.value,
-      [0, PIN_ACTION_WIDTH],
-      [0, 1],
-      Extrapolation.CLAMP,
-    ),
+    interpolate(drag.value, [0, PIN_ACTION_WIDTH], [0, 1], Extrapolation.CLAMP),
   );
 
   useSwipeActionHaptic(pinScale);
@@ -128,7 +169,7 @@ function LeftActions({
     >
       <ActionButton
         width={PIN_ACTION_WIDTH}
-        className="bg-emerald-500 w-12 h-12 rounded-full"
+        className="bg-emerald-500 w-12 h-12 rounded-full shadow/50 shadow-neutral-300"
         icon={
           isPinned ? (
             <PinOff size={22} color="#ffffff" />
@@ -221,7 +262,7 @@ function RightActions({
       >
         <ActionButton
           width={EDIT_ACTION_WIDTH}
-          className="bg-neutral-200 dark:bg-neutral-800"
+          className="bg-neutral-200 dark:bg-neutral-800 shadow/50 shadow-neutral-300"
           icon={
             <PencilIcon
               size={22}
@@ -244,7 +285,7 @@ function RightActions({
       >
         <ActionButton
           width={DELETE_ACTION_WIDTH}
-          className="bg-red-500"
+          className="bg-red-500 shadow/50 shadow-neutral-300"
           icon={<Trash2 size={22} color="#ffffff" />}
           onPress={() => {
             swipeableMethods.close();
@@ -279,6 +320,13 @@ export function SubscriptionCard({
   onSwipeableClose,
 }: SubscriptionCardProps) {
   const { currencyDisplayMode } = useAppSettings();
+  const subscriptionInitial = getSubscriptionInitial(subscription.name);
+  const recurringBillingLabel = getRecurringBillingLabel(
+    subscription.billingDate,
+    subscription.billingCycle,
+  );
+  const ddayLabel = getDdayLabel(subscription.nextBillingDate);
+  const isDueToday = ddayLabel === "오늘";
 
   const amountParts = formatAmountParts(
     subscription.amount,
@@ -346,36 +394,58 @@ export function SubscriptionCard({
       onSwipeableClose={() => onSwipeableClose?.()}
     >
       <Pressable onPress={handlePress}>
-        <Card variant="default" className="gap-3 p-4 shadow-none">
+        <Card
+          variant="default"
+          className="gap-3 p-4 shadow/20 shadow-neutral-300 dark:shadow-none"
+        >
           <Card.Body className="gap-1.5">
-            <View className="flex-row items-start justify-between gap-3">
-              <Card.Title className="flex-1 text-lg font-semibold text-black dark:text-white">
-                {subscription.name}
-              </Card.Title>
-              <View className="flex-row items-baseline gap-0.5">
-                {amountParts.currencyLabelPosition === "prefix" && (
-                  <Text className="text-base font-semibold text-black dark:text-white">
-                    {amountParts.currencyLabel}
-                  </Text>
-                )}
-                <Text className="text-base font-semibold text-black dark:text-white">
-                  {amountParts.value}
+            <View className="flex-row items-start gap-3">
+              <View className="h-13 w-13 items-center justify-center rounded-2xl bg-neutral-300">
+                <Text className="text-lg font-bold text-white">
+                  {subscriptionInitial}
                 </Text>
-                {amountParts.currencyLabelPosition === "suffix" && (
-                  <Text className="text-base font-semibold text-black dark:text-white">
-                    {amountParts.currencyLabel}
-                  </Text>
-                )}
               </View>
-            </View>
 
-            <View className="flex-row items-center justify-between gap-3">
-              <Card.Description className="text-sm text-neutral-500 dark:text-neutral-400">
-                {subscription.categoryName}
-              </Card.Description>
-              <Card.Description className="text-sm text-neutral-500 dark:text-neutral-400">
-                {billingCycleLabelMap[subscription.billingCycle]}
-              </Card.Description>
+              <View className="min-w-0 flex-1 gap-1.5">
+                <View className="flex-row items-start justify-between gap-3">
+                  <Card.Title
+                    className="flex-1 text-lg font-semibold text-black dark:text-white"
+                    numberOfLines={1}
+                  >
+                    {subscription.name}
+                  </Card.Title>
+                  <View className="flex-row items-baseline gap-0.5">
+                    {amountParts.currencyLabelPosition === "prefix" && (
+                      <Text className="text-base font-semibold text-black dark:text-white">
+                        {amountParts.currencyLabel}
+                      </Text>
+                    )}
+                    <Text className="text-lg font-semibold text-black dark:text-white">
+                      {amountParts.value}
+                    </Text>
+                    {amountParts.currencyLabelPosition === "suffix" && (
+                      <Text className="text-base font-semibold text-black dark:text-white">
+                        {amountParts.currencyLabel}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                <View className="flex-row items-center justify-between gap-3">
+                  <Card.Description
+                    className="text-sm text-neutral-500 dark:text-neutral-400"
+                    numberOfLines={1}
+                  >
+                    {subscription.categoryName}
+                  </Card.Description>
+                  <Card.Description
+                    className="text-sm text-neutral-500 dark:text-neutral-400"
+                    numberOfLines={1}
+                  >
+                    {recurringBillingLabel}
+                  </Card.Description>
+                </View>
+              </View>
             </View>
           </Card.Body>
 
@@ -392,9 +462,25 @@ export function SubscriptionCard({
                 고정됨
               </Text>
             )}
-            <Card.Description className="text-sm text-black/50 dark:text-white/50">
-              다음 청구일 {formatYmd(subscription.nextBillingDate)}
-            </Card.Description>
+            <View
+              className={clsx(
+                "rounded-full px-2.5 py-1",
+                isDueToday
+                  ? "bg-emerald-100 dark:bg-emerald-950/70"
+                  : "bg-neutral-100 dark:bg-neutral-800",
+              )}
+            >
+              <Text
+                className={clsx(
+                  "text-xs font-semibold",
+                  isDueToday
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-neutral-500 dark:text-neutral-300",
+                )}
+              >
+                {ddayLabel}
+              </Text>
+            </View>
           </Card.Footer>
         </Card>
       </Pressable>
