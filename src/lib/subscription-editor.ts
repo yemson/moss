@@ -1,7 +1,7 @@
 import type {
   BillingCycle,
   Currency,
-} from "@/features/subscriptions/model/subscription-store";
+} from "@/lib/subscription-store";
 
 export type SelectOption = { value: string; label: string };
 

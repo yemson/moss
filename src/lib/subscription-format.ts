@@ -1,8 +1,8 @@
 import type {
   BillingCycle,
   Currency,
-} from "@/features/subscriptions/model/subscription-store";
-import type { CurrencyDisplayMode } from "@/shared/lib/currency-display";
+} from "@/lib/subscription-store";
+import type { CurrencyDisplayMode } from "@/lib/currency-display";
 
 export const billingCycleLabelMap: Record<BillingCycle, string> = {
   monthly: "월간",

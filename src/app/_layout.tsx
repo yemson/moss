@@ -9,6 +9,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useMemo } from "react";
+import { AppSettingsProvider } from "@/lib/app-settings";
 import "../global.css";
 
 const config: HeroUINativeConfig = {
@@ -48,21 +49,23 @@ export default function TabLayout() {
     <ThemeProvider value={navigationTheme}>
       <GestureHandlerRootView style={{ flex: 1, backgroundColor }}>
         <HeroUINativeProvider config={config}>
-          <Stack
-            screenOptions={{
-              headerTransparent: true,
-              contentStyle: { backgroundColor },
-              headerStyle: { backgroundColor: "transparent" },
-            }}
-          >
-            <Stack.Screen
-              name="subscriptions/new"
-              options={{
-                title: "구독 추가",
-                presentation: "modal",
+          <AppSettingsProvider>
+            <Stack
+              screenOptions={{
+                headerTransparent: true,
+                contentStyle: { backgroundColor },
+                headerStyle: { backgroundColor: "transparent" },
               }}
-            />
-          </Stack>
+            >
+              <Stack.Screen
+                name="subscriptions/new"
+                options={{
+                  title: "구독 추가",
+                  presentation: "modal",
+                }}
+              />
+            </Stack>
+          </AppSettingsProvider>
         </HeroUINativeProvider>
       </GestureHandlerRootView>
     </ThemeProvider>
