@@ -63,7 +63,7 @@ export default function SettingsRoute() {
             <Text className="text-sm text-muted mb-2 ml-2">
               {section.title}
             </Text>
-            <ListGroup className="shadow-none px-1.5">
+            <ListGroup className="shadow/20 shadow-neutral-300 dark:shadow-none px-1.5">
               {section.items.map((item, index) => {
                 const Icon = item.icon;
                 return (

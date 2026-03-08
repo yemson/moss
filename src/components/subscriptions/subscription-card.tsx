@@ -400,8 +400,8 @@ export function SubscriptionCard({
         >
           <Card.Body className="gap-1.5">
             <View className="flex-row items-start gap-3">
-              <View className="h-13 w-13 items-center justify-center rounded-2xl bg-neutral-300">
-                <Text className="text-lg font-bold text-white">
+              <View className="h-13 w-13 items-center justify-center rounded-2xl bg-surface-secondary dark:bg-surface-secondary">
+                <Text className="text-lg font-bold text-surface-foreground">
                   {subscriptionInitial}
                 </Text>
               </View>
