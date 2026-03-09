@@ -60,7 +60,6 @@ export default function TabLayout() {
               <Stack.Screen
                 name="subscriptions/new"
                 options={{
-                  title: "구독 추가",
                   presentation: "modal",
                 }}
               />

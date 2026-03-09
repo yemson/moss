@@ -13,14 +13,15 @@ import { Pressable, Text, View } from "react-native";
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { scheduleOnRN } from "react-native-worklets";
 import Reanimated, {
   Extrapolation,
   interpolate,
-  runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
+  withSpring,
   type SharedValue,
 } from "react-native-reanimated";
 
@@ -30,8 +31,15 @@ const DELETE_ACTION_WIDTH = ACTION_BUTTON_SIZE;
 const RIGHT_ACTION_GAP = 8;
 const RIGHT_ACTION_WIDTH =
   EDIT_ACTION_WIDTH + DELETE_ACTION_WIDTH + RIGHT_ACTION_GAP;
+const ACTION_EDGE_INSET = 8;
+const ACTION_CONTAINER_WIDTH = RIGHT_ACTION_WIDTH + ACTION_EDGE_INSET;
 const ACTION_HAPTIC_THRESHOLD = 0.7;
 const ACTION_HAPTIC_RESET_THRESHOLD = 0.25;
+const ACTION_SCALE_SPRING_CONFIG = {
+  damping: 18,
+  stiffness: 220,
+  mass: 0.8,
+} as const;
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 function parseYmdToDate(value: string) {
@@ -83,7 +91,7 @@ function useSwipeActionHaptic(scale: SharedValue<number>) {
     (currentScale) => {
       if (isArmed.value && currentScale >= ACTION_HAPTIC_THRESHOLD) {
         isArmed.value = false;
-        runOnJS(triggerSwipeActionHaptic)();
+        scheduleOnRN(triggerSwipeActionHaptic);
       } else if (
         !isArmed.value &&
         currentScale <= ACTION_HAPTIC_RESET_THRESHOLD
@@ -135,7 +143,7 @@ function RightActions({
   onDelete,
   swipeableMethods,
 }: RightActionsProps) {
-  const editScale = useDerivedValue(() =>
+  const editTargetScale = useDerivedValue(() =>
     interpolate(
       drag.value,
       [-RIGHT_ACTION_WIDTH, -(DELETE_ACTION_WIDTH + RIGHT_ACTION_GAP), 0],
@@ -143,7 +151,7 @@ function RightActions({
       Extrapolation.CLAMP,
     ),
   );
-  const deleteScale = useDerivedValue(() =>
+  const deleteTargetScale = useDerivedValue(() =>
     interpolate(
       drag.value,
       [-DELETE_ACTION_WIDTH, 0],
@@ -152,45 +160,45 @@ function RightActions({
     ),
   );
 
-  useSwipeActionHaptic(editScale);
-  useSwipeActionHaptic(deleteScale);
+  const editScale = useDerivedValue(() =>
+    withSpring(editTargetScale.value, ACTION_SCALE_SPRING_CONFIG),
+  );
+  const deleteScale = useDerivedValue(() =>
+    withSpring(deleteTargetScale.value, ACTION_SCALE_SPRING_CONFIG),
+  );
+
+  useSwipeActionHaptic(editTargetScale);
+  useSwipeActionHaptic(deleteTargetScale);
 
   const editAnimatedStyle = useAnimatedStyle(() => {
     return {
-      opacity: interpolate(
-        drag.value,
-        [-RIGHT_ACTION_WIDTH, -(DELETE_ACTION_WIDTH + RIGHT_ACTION_GAP), 0],
-        [1, 0, 0],
-        Extrapolation.CLAMP,
-      ),
+      opacity: editTargetScale.value,
       transform: [
         {
           scale: editScale.value,
         },
       ],
     };
-  }, [drag, editScale]);
+  }, [editScale, editTargetScale]);
 
   const deleteAnimatedStyle = useAnimatedStyle(() => {
     return {
-      opacity: interpolate(
-        drag.value,
-        [-DELETE_ACTION_WIDTH, 0],
-        [1, 0],
-        Extrapolation.CLAMP,
-      ),
+      opacity: deleteTargetScale.value,
       transform: [
         {
           scale: deleteScale.value,
         },
       ],
     };
-  }, [deleteScale, drag]);
+  }, [deleteScale, deleteTargetScale]);
 
   return (
     <Reanimated.View
-      style={{ width: RIGHT_ACTION_WIDTH }}
-      className="flex-row items-center justify-center ml-2"
+      style={{
+        width: ACTION_CONTAINER_WIDTH,
+        paddingRight: ACTION_EDGE_INSET,
+      }}
+      className="ml-2 flex-row items-center"
     >
       <Reanimated.View
         style={[editAnimatedStyle, { width: EDIT_ACTION_WIDTH }]}
@@ -287,16 +295,15 @@ export function SubscriptionCard({
   return (
     <ReanimatedSwipeable
       ref={swipeableRef}
-      friction={4}
+      friction={2.2}
       rightThreshold={20}
       dragOffsetFromRightEdge={10}
       overshootRight={false}
-      enableTrackpadTwoFingerGesture
       containerStyle={{ borderRadius: 24, overflow: "visible" }}
       childrenContainerStyle={{ borderRadius: 24, overflow: "visible" }}
       renderRightActions={renderRightActions}
-      onSwipeableWillOpen={() => onSwipeableWillOpen?.()}
-      onSwipeableClose={() => onSwipeableClose?.()}
+      onSwipeableWillOpen={onSwipeableWillOpen}
+      onSwipeableClose={onSwipeableClose}
     >
       <Pressable onPress={handlePress}>
         <Card

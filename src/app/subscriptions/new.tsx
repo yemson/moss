@@ -138,14 +138,8 @@ export default function NewSubscriptionRoute() {
   const saveDisabled = isSaving || !categoryId;
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: "구독 추가",
-        }}
-      >
-        <Stack.Screen.BackButton displayMode="minimal" />
-      </Stack.Screen>
+    <View className="flex-1">
+      <Stack.Screen options={{ title: "새로운 구독" }} />
 
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.View>
@@ -204,6 +198,6 @@ export default function NewSubscriptionRoute() {
         onCategoryChange={setCategoryId}
         onMemoChange={setMemo}
       />
-    </>
+    </View>
   );
 }

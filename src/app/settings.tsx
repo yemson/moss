@@ -50,6 +50,7 @@ export default function SettingsRoute() {
       <Stack.Screen
         options={{
           title: "설정",
+          headerBackButtonDisplayMode: "minimal",
         }}
       />
 

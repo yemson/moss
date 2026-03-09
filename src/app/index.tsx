@@ -6,7 +6,6 @@ import {
   listSubscriptions,
   type SubscriptionWithCategory,
 } from "@/lib/subscription-store";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useRouter } from "expo-router";
 import { Button } from "heroui-native";
@@ -16,7 +15,6 @@ import { Alert, FlatList, Pressable, Text, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 export default function HomeRoute() {
-  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const [subscriptions, setSubscriptions] = useState<
     SubscriptionWithCategory[] | null
@@ -130,7 +128,8 @@ export default function HomeRoute() {
     <>
       <Stack.Screen
         options={{
-          title: "",
+          title: "내 구독",
+          headerLargeTitleEnabled: true,
         }}
       />
 
@@ -154,6 +153,8 @@ export default function HomeRoute() {
       </Stack.Toolbar>
 
       <FlatList
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
         data={subscriptions ?? []}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
@@ -178,9 +179,8 @@ export default function HomeRoute() {
         style={{ flex: 1, width: "100%", paddingHorizontal: 16 }}
         className="flex-1 w-full px-4"
         contentContainerStyle={{
-          paddingTop: headerHeight + 15,
-          paddingBottom: 120,
-          flexGrow: 1,
+          paddingTop: 15,
+          paddingBottom: 100,
         }}
         ListHeaderComponent={
           <>

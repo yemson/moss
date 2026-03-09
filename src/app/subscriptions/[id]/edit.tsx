@@ -194,6 +194,7 @@ export default function EditSubscriptionRoute() {
       <Stack.Screen
         options={{
           title: "구독 수정",
+          headerBackButtonDisplayMode: "minimal",
         }}
       >
         <Stack.Screen.BackButton displayMode="minimal" />

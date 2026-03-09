@@ -126,13 +126,43 @@ export default function SubscriptionDetailRoute() {
     : null;
 
   return (
-    <>
+    <View className="flex-1">
       <Stack.Screen
         options={{
           title: "구독 상세",
           headerBackButtonDisplayMode: "minimal",
         }}
       />
+
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.View>
+          <View style={{ width: 36, height: 36 }}>
+            <Pressable
+              onPressIn={hapticImpactLight}
+              onPress={() => {
+                router.navigate(`/subscriptions/${subscription?.id}/edit`);
+              }}
+              hitSlop={8}
+              className="flex-1 items-center justify-center"
+            >
+              <PencilIcon className="text-black dark:text-white" />
+            </Pressable>
+          </View>
+        </Stack.Toolbar.View>
+
+        <Stack.Toolbar.View>
+          <View style={{ width: 36, height: 36 }}>
+            <Pressable
+              onPressIn={hapticImpactLight}
+              onPress={handleDeletePress}
+              hitSlop={8}
+              className="flex-1 items-center justify-center"
+            >
+              <Trash2Icon className="text-danger" />
+            </Pressable>
+          </View>
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
 
       <View className="flex-1">
         <ScrollView
@@ -224,39 +254,7 @@ export default function SubscriptionDetailRoute() {
             </Card>
           )}
         </ScrollView>
-
-        {subscription && (
-          <Stack.Toolbar placement="right">
-            <Stack.Toolbar.View>
-              <View style={{ width: 36, height: 36 }}>
-                <Pressable
-                  onPressIn={hapticImpactLight}
-                  onPress={() => {
-                    router.navigate(`/subscriptions/${subscription.id}/edit`);
-                  }}
-                  hitSlop={8}
-                  className="flex-1 items-center justify-center"
-                >
-                  <PencilIcon className="text-black dark:text-white" />
-                </Pressable>
-              </View>
-            </Stack.Toolbar.View>
-
-            <Stack.Toolbar.View>
-              <View style={{ width: 36, height: 36 }}>
-                <Pressable
-                  onPressIn={hapticImpactLight}
-                  onPress={handleDeletePress}
-                  hitSlop={8}
-                  className="flex-1 items-center justify-center"
-                >
-                  <Trash2Icon className="text-danger" />
-                </Pressable>
-              </View>
-            </Stack.Toolbar.View>
-          </Stack.Toolbar>
-        )}
       </View>
-    </>
+    </View>
   );
 }
