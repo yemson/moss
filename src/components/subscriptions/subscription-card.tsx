@@ -1,29 +1,29 @@
-import { useCallback, type ReactNode, type RefObject } from "react";
-import { Pressable, Text, View } from "react-native";
-import { Pin, PinOff, Trash2 } from "lucide-react-native";
-import Reanimated, {
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  type SharedValue,
-  useAnimatedReaction,
-  useAnimatedStyle,
-  useDerivedValue,
-  useSharedValue,
-} from "react-native-reanimated";
-import ReanimatedSwipeable, {
-  type SwipeableMethods,
-} from "react-native-gesture-handler/ReanimatedSwipeable";
-import { Card, Separator } from "heroui-native";
 import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
+import { formatAmountParts } from "@/lib/subscription-format";
 import type {
   BillingCycle,
   SubscriptionWithCategory,
 } from "@/lib/subscription-store";
-import { formatAmountParts } from "@/lib/subscription-format";
-import { PencilIcon } from "lucide-uniwind";
 import { clsx } from "clsx";
+import { Card, Separator } from "heroui-native";
+import { Pin, PinOff } from "lucide-react-native";
+import { PencilIcon, Trash2Icon } from "lucide-uniwind";
+import { useCallback, type ReactNode, type RefObject } from "react";
+import { Pressable, Text, View } from "react-native";
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
+import Reanimated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  type SharedValue,
+} from "react-native-reanimated";
 
 const ACTION_BUTTON_SIZE = 48;
 const PIN_ACTION_WIDTH = ACTION_BUTTON_SIZE;
@@ -169,7 +169,7 @@ function LeftActions({
     >
       <ActionButton
         width={PIN_ACTION_WIDTH}
-        className="bg-emerald-500 w-12 h-12 rounded-full shadow/50 shadow-neutral-300"
+        className="bg-success w-12 h-12 rounded-full"
         icon={
           isPinned ? (
             <PinOff size={22} color="#ffffff" />
@@ -262,13 +262,8 @@ function RightActions({
       >
         <ActionButton
           width={EDIT_ACTION_WIDTH}
-          className="bg-neutral-200 dark:bg-neutral-800 shadow/50 shadow-neutral-300"
-          icon={
-            <PencilIcon
-              size={22}
-              className="text-neutral-600 dark:text-neutral-300"
-            />
-          }
+          className="bg-info"
+          icon={<PencilIcon size={22} className="text-info-foreground" />}
           onPress={() => {
             swipeableMethods.close();
             hapticImpactLight();
@@ -285,8 +280,8 @@ function RightActions({
       >
         <ActionButton
           width={DELETE_ACTION_WIDTH}
-          className="bg-red-500 shadow/50 shadow-neutral-300"
-          icon={<Trash2 size={22} color="#ffffff" />}
+          className="bg-danger"
+          icon={<Trash2Icon size={22} className="text-danger-foreground" />}
           onPress={() => {
             swipeableMethods.close();
             hapticImpactLight();
@@ -396,7 +391,7 @@ export function SubscriptionCard({
       <Pressable onPress={handlePress}>
         <Card
           variant="default"
-          className="gap-3 p-4 shadow/20 shadow-neutral-300 dark:shadow-none"
+          className="gap-3 p-4 shadow-lg shadow-neutral-300/10 dark:shadow-none"
         >
           <Card.Body className="gap-1.5">
             <View className="flex-row items-start gap-3">
@@ -433,13 +428,13 @@ export function SubscriptionCard({
 
                 <View className="flex-row items-center justify-between gap-3">
                   <Card.Description
-                    className="text-sm text-neutral-500 dark:text-neutral-400"
+                    className="text-sm text-foreground/50"
                     numberOfLines={1}
                   >
                     {subscription.categoryName}
                   </Card.Description>
                   <Card.Description
-                    className="text-sm text-neutral-500 dark:text-neutral-400"
+                    className="text-sm text-foreground/50"
                     numberOfLines={1}
                   >
                     {recurringBillingLabel}
@@ -458,24 +453,20 @@ export function SubscriptionCard({
             )}
           >
             {subscription.isPinned && (
-              <Text className="text-xs font-semibold text-emerald-500">
-                고정됨
-              </Text>
+              <Text className="text-xs font-semibold text-success">고정됨</Text>
             )}
             <View
               className={clsx(
                 "rounded-full px-2.5 py-1",
                 isDueToday
-                  ? "bg-emerald-100 dark:bg-emerald-950/70"
-                  : "bg-neutral-100 dark:bg-neutral-800",
+                  ? "bg-success-soft"
+                  : "bg-surface-secondary dark:bg-surface-secondary",
               )}
             >
               <Text
                 className={clsx(
                   "text-xs font-semibold",
-                  isDueToday
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-neutral-500 dark:text-neutral-300",
+                  isDueToday ? "text-success" : "text-foreground/50",
                 )}
               >
                 {ddayLabel}

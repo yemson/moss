@@ -1,7 +1,7 @@
-import { MoonIcon, MonitorIcon, SunIcon } from "lucide-uniwind";
 import { Tabs } from "heroui-native";
-import { Uniwind, useUniwind } from "uniwind";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-uniwind";
 import { View } from "react-native";
+import { Uniwind, useUniwind } from "uniwind";
 
 type ThemeMode = "light" | "dark" | "system";
 

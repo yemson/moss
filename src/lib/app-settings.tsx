@@ -1,3 +1,8 @@
+import {
+  DEFAULT_CURRENCY_DISPLAY_MODE,
+  isCurrencyDisplayMode,
+  type CurrencyDisplayMode,
+} from "@/lib/currency-display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
@@ -6,11 +11,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  DEFAULT_CURRENCY_DISPLAY_MODE,
-  isCurrencyDisplayMode,
-  type CurrencyDisplayMode,
-} from "@/lib/currency-display";
 
 const APP_SETTINGS_STORAGE_KEY = "subak.settings";
 
@@ -30,7 +30,9 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
 
     const loadSettings = async () => {
       try {
-        const rawSettings = await AsyncStorage.getItem(APP_SETTINGS_STORAGE_KEY);
+        const rawSettings = await AsyncStorage.getItem(
+          APP_SETTINGS_STORAGE_KEY,
+        );
         if (!rawSettings || !isMounted) {
           return;
         }

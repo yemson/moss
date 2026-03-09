@@ -1,7 +1,3 @@
-import { Alert, Keyboard, Pressable, View } from "react-native";
-import { Stack, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { CheckIcon, XIcon } from "lucide-uniwind";
 import { SubscriptionForm } from "@/components/subscriptions/subscription-form";
 import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
 import {
@@ -15,6 +11,10 @@ import {
   type BillingCycle,
   type Currency,
 } from "@/lib/subscription-store";
+import { Stack, useRouter } from "expo-router";
+import { CheckIcon, XIcon } from "lucide-uniwind";
+import { useEffect, useState } from "react";
+import { Alert, Keyboard, Pressable, View } from "react-native";
 
 export default function NewSubscriptionRoute() {
   const router = useRouter();
@@ -174,7 +174,7 @@ export default function NewSubscriptionRoute() {
               hitSlop={8}
               className={`flex-1 items-center justify-center ${saveDisabled ? "opacity-50" : ""}`}
             >
-              <CheckIcon className="text-emerald-500" />
+              <CheckIcon className="text-success" />
             </Pressable>
           </View>
         </Stack.Toolbar.View>

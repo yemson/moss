@@ -1,11 +1,11 @@
-import { Stack } from "expo-router";
-import type { ComponentType, ReactNode } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { useHeaderHeight } from "@react-navigation/elements";
-import { ListGroup, Separator } from "heroui-native";
-import { BanknoteIcon, SunIcon } from "lucide-uniwind";
 import { CurrencyDisplayTabs } from "@/components/settings/currency-display-tabs";
 import { ThemeModeTabs } from "@/components/settings/theme-mode-tabs";
+import { useHeaderHeight } from "@react-navigation/elements";
+import { Stack } from "expo-router";
+import { ListGroup, Separator } from "heroui-native";
+import { BanknoteIcon, SunIcon } from "lucide-uniwind";
+import type { ComponentType, ReactNode } from "react";
+import { ScrollView, Text, View } from "react-native";
 
 interface SettingItem {
   id: string;
@@ -63,7 +63,7 @@ export default function SettingsRoute() {
             <Text className="text-sm text-muted mb-2 ml-2">
               {section.title}
             </Text>
-            <ListGroup className="shadow/20 shadow-neutral-300 dark:shadow-none px-1.5">
+            <ListGroup className="shadow-lg shadow-neutral-300/10 dark:shadow-none px-1.5">
               {section.items.map((item, index) => {
                 const Icon = item.icon;
                 return (

@@ -1,8 +1,8 @@
-import { Text, View } from "react-native";
-import { Card } from "heroui-native";
 import { useAppSettings } from "@/lib/app-settings";
-import type { SubscriptionWithCategory } from "@/lib/subscription-store";
 import { formatAmount } from "@/lib/subscription-format";
+import type { SubscriptionWithCategory } from "@/lib/subscription-store";
+import { Card } from "heroui-native";
+import { Text, View } from "react-native";
 
 interface SubscriptionSummaryCardProps {
   subscriptions: SubscriptionWithCategory[];
@@ -42,10 +42,10 @@ export function SubscriptionSummaryCard({
   const totalLabel = formatAmount(monthlyTotal, "KRW", currencyDisplayMode);
 
   return (
-    <Card className="mb-4 rounded-3xl px-6 py-6 shadow/20 shadow-neutral-300 dark:shadow-none">
+    <Card className="mb-4 rounded-3xl px-6 py-6 shadow-lg shadow-neutral-300/10 dark:shadow-none">
       <View className="gap-5">
         <Card.Body className="p-0 gap-1">
-          <Card.Title className="text-base font-medium text-emerald-500">
+          <Card.Title className="text-base font-medium text-success">
             {title}
           </Card.Title>
           <Text className="text-4xl font-bold text-black dark:text-white">

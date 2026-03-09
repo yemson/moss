@@ -1,15 +1,15 @@
-import { HeroUINativeProvider } from "heroui-native";
-import type { HeroUINativeConfig } from "heroui-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Stack } from "expo-router";
-import { useUniwind } from "uniwind";
+import { AppSettingsProvider } from "@/lib/app-settings";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
+import { Stack } from "expo-router";
+import type { HeroUINativeConfig } from "heroui-native";
+import { HeroUINativeProvider } from "heroui-native";
 import { useMemo } from "react";
-import { AppSettingsProvider } from "@/lib/app-settings";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useUniwind } from "uniwind";
 import "../global.css";
 
 const config: HeroUINativeConfig = {
@@ -22,7 +22,7 @@ const config: HeroUINativeConfig = {
 export default function TabLayout() {
   const { theme } = useUniwind();
   const isDarkMode = theme === "dark";
-  const backgroundColor = isDarkMode ? "#010101" : "#F2F2F7";
+  const backgroundColor = isDarkMode ? "#000000" : "#F5F5F5";
   const navigationTheme = useMemo(
     () =>
       isDarkMode

@@ -134,7 +134,7 @@ export function SubscriptionForm({
               서비스 이름
             </Text>
             <Input
-              className="ios:shadow/20 shadow-neutral-300 dark:shadow-none"
+              className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
               value={values.serviceName}
               onChangeText={onServiceNameChange}
               onFocus={(event) =>
@@ -165,7 +165,7 @@ export function SubscriptionForm({
               presentation="popover"
             >
               <Select.Trigger
-                className="ios:shadow/20 shadow-neutral-300 dark:shadow-none"
+                className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
                 onPressIn={dismissKeyboardAndHaptic}
               >
                 <Select.Value placeholder="선택" />
@@ -196,7 +196,7 @@ export function SubscriptionForm({
               <TextField isRequired>
                 <Text className="ml-1 font-semibold dark:text-white">금액</Text>
                 <Input
-                  className="ios:shadow/20 shadow-neutral-300 dark:shadow-none"
+                  className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
                   value={values.amount}
                   onChangeText={onAmountChange}
                   onFocus={(event) =>
@@ -224,7 +224,7 @@ export function SubscriptionForm({
                 presentation="popover"
               >
                 <Select.Trigger
-                  className="min-w-25 ios:shadow/20 shadow-neutral-300 dark:shadow-none"
+                  className="min-w-25 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
                   onPressIn={dismissKeyboardAndHaptic}
                 >
                   <Select.Value placeholder="선택" />
@@ -267,7 +267,7 @@ export function SubscriptionForm({
                     <Pressable onPressIn={dismissKeyboardAndHaptic}>
                       <View pointerEvents="none">
                         <Input
-                          className="ios:shadow/20 shadow-neutral-300 dark:shadow-none"
+                          className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
                           value={values.billingDate}
                           placeholder="YYYY-MM-DD"
                           editable={false}
@@ -357,7 +357,7 @@ export function SubscriptionForm({
                 presentation="popover"
               >
                 <Select.Trigger
-                  className="min-w-25 ios:shadow/20 shadow-neutral-300 dark:shadow-none"
+                  className="min-w-25 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
                   onPressIn={dismissKeyboardAndHaptic}
                 >
                   <Select.Value placeholder="선택" />
@@ -393,7 +393,7 @@ export function SubscriptionForm({
           <TextField>
             <Text className="ml-1 font-semibold dark:text-white">메모</Text>
             <TextArea
-              className="ios:shadow/20 shadow-neutral-300 dark:shadow-none min-h-28"
+              className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none min-h-28"
               value={values.memo}
               onChangeText={onMemoChange}
               onFocus={(event) =>

@@ -1,11 +1,11 @@
-import { Stack } from "expo-router";
-import { Button, Separator } from "heroui-native";
-import { ScrollView, Text, View } from "react-native";
 import {
   hapticImpact,
   hapticNotification,
   hapticSelection,
 } from "@/lib/haptics";
+import { Stack } from "expo-router";
+import { Button, Separator } from "heroui-native";
+import { ScrollView, Text, View } from "react-native";
 
 export default function DevHapticsRoute() {
   return (
@@ -53,10 +53,16 @@ export default function DevHapticsRoute() {
 
         <View className="gap-3">
           <Text className="text-xs text-muted">Notification</Text>
-          <Button variant="primary" onPress={() => hapticNotification("success")}>
+          <Button
+            variant="primary"
+            onPress={() => hapticNotification("success")}
+          >
             <Button.Label>Notification Success</Button.Label>
           </Button>
-          <Button variant="outline" onPress={() => hapticNotification("warning")}>
+          <Button
+            variant="outline"
+            onPress={() => hapticNotification("warning")}
+          >
             <Button.Label>Notification Warning</Button.Label>
           </Button>
           <Button variant="danger" onPress={() => hapticNotification("error")}>

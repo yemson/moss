@@ -1,11 +1,11 @@
-import { View } from "react-native";
-import { Tabs } from "heroui-native";
 import { useAppSettings } from "@/lib/app-settings";
 import {
   CURRENCY_DISPLAY_TAB_LABELS,
   isCurrencyDisplayMode,
   type CurrencyDisplayMode,
 } from "@/lib/currency-display";
+import { Tabs } from "heroui-native";
+import { View } from "react-native";
 
 const CURRENCY_DISPLAY_OPTIONS: CurrencyDisplayMode[] = ["symbol", "text"];
 

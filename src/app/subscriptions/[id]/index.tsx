@@ -1,22 +1,22 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useHeaderHeight } from "@react-navigation/elements";
-import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
-import { Card, Separator } from "heroui-native";
-import { PencilIcon } from "lucide-uniwind";
 import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight } from "@/lib/haptics";
 import { resolveId } from "@/lib/subscription-editor";
-import {
-  getSubscriptionById,
-  type SubscriptionWithCategory,
-} from "@/lib/subscription-store";
 import {
   billingCycleLabelMap,
   formatAmount,
   formatYmd,
 } from "@/lib/subscription-format";
+import {
+  getSubscriptionById,
+  type SubscriptionWithCategory,
+} from "@/lib/subscription-store";
+import { useHeaderHeight } from "@react-navigation/elements";
+import { useFocusEffect } from "@react-navigation/native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Card, Separator } from "heroui-native";
+import { PencilIcon } from "lucide-uniwind";
+import { useCallback, useState } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
 
 interface DetailRowProps {
   label: string;
@@ -40,8 +40,9 @@ export default function SubscriptionDetailRoute() {
   const { currencyDisplayMode } = useAppSettings();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const subscriptionId = resolveId(params.id);
-  const [subscription, setSubscription] =
-    useState<SubscriptionWithCategory | null | undefined>(undefined);
+  const [subscription, setSubscription] = useState<
+    SubscriptionWithCategory | null | undefined
+  >(undefined);
 
   const loadSubscription = useCallback(async () => {
     if (!subscriptionId) {
