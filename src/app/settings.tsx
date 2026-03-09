@@ -69,22 +69,22 @@ export default function SettingsRoute() {
                 return (
                   <View key={item.id}>
                     <ListGroup.Item>
-                      {Icon ? (
+                      {Icon && (
                         <ListGroup.ItemPrefix>
                           <Icon
                             size={18}
                             className="opacity-80 text-black dark:text-white"
                           />
                         </ListGroup.ItemPrefix>
-                      ) : null}
+                      )}
 
                       <ListGroup.ItemContent>
                         <ListGroup.ItemTitle>{item.title}</ListGroup.ItemTitle>
-                        {item.description ? (
+                        {item.description && (
                           <ListGroup.ItemDescription>
                             {item.description}
                           </ListGroup.ItemDescription>
-                        ) : null}
+                        )}
                       </ListGroup.ItemContent>
 
                       <ListGroup.ItemSuffix>
@@ -92,9 +92,9 @@ export default function SettingsRoute() {
                       </ListGroup.ItemSuffix>
                     </ListGroup.Item>
 
-                    {index < section.items.length - 1 ? (
+                    {index < section.items.length - 1 && (
                       <Separator className="opacity-40" />
-                    ) : null}
+                    )}
                   </View>
                 );
               })}

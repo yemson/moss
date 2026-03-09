@@ -217,7 +217,7 @@ export default function EditSubscriptionRoute() {
         </Stack.Toolbar.View>
       </Stack.Toolbar>
 
-      {!subscriptionId ? (
+      {!subscriptionId && (
         <View className="flex-1 px-4">
           <View className="pt-28">
             <Text className="text-sm text-neutral-500 dark:text-neutral-400">
@@ -225,9 +225,9 @@ export default function EditSubscriptionRoute() {
             </Text>
           </View>
         </View>
-      ) : null}
+      )}
 
-      {subscriptionId && loadedSubscription === null ? (
+      {subscriptionId && loadedSubscription === null && (
         <View className="flex-1 px-4">
           <View className="pt-28">
             <Text className="text-sm text-neutral-500 dark:text-neutral-400">
@@ -235,9 +235,9 @@ export default function EditSubscriptionRoute() {
             </Text>
           </View>
         </View>
-      ) : null}
+      )}
 
-      {loadedSubscription ? (
+      {loadedSubscription && (
         <SubscriptionForm
           mode="edit"
           values={{
@@ -262,7 +262,7 @@ export default function EditSubscriptionRoute() {
           onCategoryChange={setCategoryId}
           onMemoChange={setMemo}
         />
-      ) : null}
+      )}
     </>
   );
 }

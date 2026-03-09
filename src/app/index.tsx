@@ -4,7 +4,6 @@ import { hapticImpactLight } from "@/lib/haptics";
 import {
   deleteSubscription,
   listSubscriptions,
-  setSubscriptionPinned,
   type SubscriptionWithCategory,
 } from "@/lib/subscription-store";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -13,13 +12,8 @@ import { Stack, useRouter } from "expo-router";
 import { Button } from "heroui-native";
 import { PlusIcon, SettingsIcon } from "lucide-uniwind";
 import React, { useCallback, useRef, useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, Text, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
-import Animated, { LinearTransition } from "react-native-reanimated";
-
-const PIN_REORDER_TRANSITION = LinearTransition.springify()
-  .damping(60)
-  .stiffness(400);
 
 export default function HomeRoute() {
   const headerHeight = useHeaderHeight();
@@ -88,22 +82,6 @@ export default function HomeRoute() {
       openedSwipeableIdRef.current = null;
     }
   }, []);
-
-  const handleTogglePin = useCallback(
-    async (subscription: SubscriptionWithCategory) => {
-      try {
-        await setSubscriptionPinned(subscription.id, !subscription.isPinned);
-        await loadSubscriptions();
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Pin 상태를 변경하지 못했습니다.";
-        Alert.alert("오류", message);
-      }
-    },
-    [loadSubscriptions],
-  );
 
   const handleDeleteConfirmed = useCallback(
     async (subscriptionId: string) => {
@@ -175,11 +153,9 @@ export default function HomeRoute() {
         </Stack.Toolbar.View>
       </Stack.Toolbar>
 
-      <Animated.FlatList
+      <FlatList
         data={subscriptions ?? []}
         keyExtractor={(item) => item.id}
-        itemLayoutAnimation={PIN_REORDER_TRANSITION}
-        skipEnteringExitingAnimations
         renderItem={({ item }) => (
           <SubscriptionCard
             swipeableRef={getSwipeableRef(item.id)}
@@ -191,9 +167,6 @@ export default function HomeRoute() {
               }
 
               router.navigate(`/subscriptions/${item.id}`);
-            }}
-            onTogglePin={() => {
-              void handleTogglePin(item);
             }}
             onEdit={() => router.navigate(`/subscriptions/${item.id}/edit`)}
             onDelete={() => handleDeletePress(item)}

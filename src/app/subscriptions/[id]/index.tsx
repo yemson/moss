@@ -1,41 +1,67 @@
 import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight } from "@/lib/haptics";
 import { resolveId } from "@/lib/subscription-editor";
+import { formatAmountParts, formatYmd } from "@/lib/subscription-format";
 import {
-  billingCycleLabelMap,
-  formatAmount,
-  formatYmd,
-} from "@/lib/subscription-format";
-import {
+  deleteSubscription,
   getSubscriptionById,
+  type BillingCycle,
   type SubscriptionWithCategory,
 } from "@/lib/subscription-store";
-import { useHeaderHeight } from "@react-navigation/elements";
+import { SubscriptionInitialBadge } from "@/components/subscriptions/subscription-initial-badge";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Card, Separator } from "heroui-native";
-import { PencilIcon } from "lucide-uniwind";
-import { useCallback, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import {
+  CalendarIcon,
+  PencilIcon,
+  RefreshCwIcon,
+  Trash2Icon,
+} from "lucide-uniwind";
+import { useCallback, type ReactNode, useState } from "react";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 
-interface DetailRowProps {
+function getBillingSummaryLabel(billingCycle: BillingCycle) {
+  return billingCycle === "monthly" ? "월간 결제" : "연간 결제";
+}
+
+function getBillingCycleValue(
+  billingDate: string,
+  billingCycle: BillingCycle,
+): string {
+  const [, month, day] = billingDate.split("-");
+
+  if (billingCycle === "monthly") {
+    return `매월 ${Number(day)}일`;
+  }
+
+  return `매년 ${month}.${day}`;
+}
+
+interface DetailInfoRowProps {
+  icon: ReactNode;
   label: string;
   value: string;
 }
 
-function DetailRow({ label, value }: DetailRowProps) {
+function DetailInfoRow({ icon, label, value }: DetailInfoRowProps) {
   return (
-    <View className="gap-1.5">
-      <Text className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-        {label}
+    <View className="flex-row items-center justify-between gap-3 py-0.5">
+      <View className="flex-row items-center gap-2.5">
+        <View className="opacity-50">{icon}</View>
+        <Text className="text-sm text-foreground/55">{label}</Text>
+      </View>
+      <Text
+        className="text-base font-semibold text-black dark:text-white"
+        style={{ fontVariant: ["tabular-nums"] }}
+      >
+        {value}
       </Text>
-      <Text className="text-base text-black dark:text-white">{value}</Text>
     </View>
   );
 }
 
 export default function SubscriptionDetailRoute() {
-  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const { currencyDisplayMode } = useAppSettings();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
@@ -59,99 +85,178 @@ export default function SubscriptionDetailRoute() {
     }
   }, [subscriptionId]);
 
+  const handleDeletePress = useCallback(() => {
+    if (!subscription) {
+      return;
+    }
+
+    Alert.alert("구독 삭제", `'${subscription.name}' 구독을 삭제할까요?`, [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteSubscription(subscription.id);
+            router.replace("/");
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "구독을 삭제하지 못했습니다.";
+            Alert.alert("오류", message);
+          }
+        },
+      },
+    ]);
+  }, [router, subscription]);
+
   useFocusEffect(
     useCallback(() => {
       void loadSubscription();
     }, [loadSubscription]),
   );
 
+  const amountParts = subscription
+    ? formatAmountParts(
+        subscription.amount,
+        subscription.currency,
+        currencyDisplayMode,
+      )
+    : null;
+
   return (
     <>
       <Stack.Screen
         options={{
           title: "구독 상세",
+          headerBackButtonDisplayMode: "minimal",
         }}
       />
 
-      {subscriptionId ? (
-        <Stack.Toolbar placement="right">
-          <Stack.Toolbar.View>
-            <View className="w-8 h-8">
-              <Pressable
-                onPressIn={hapticImpactLight}
-                onPress={() =>
-                  router.push(`/subscriptions/${subscriptionId}/edit`)
-                }
-                hitSlop={8}
-                className="flex-1 items-center justify-center"
-              >
-                <PencilIcon className="text-black dark:text-white" />
-              </Pressable>
-            </View>
-          </Stack.Toolbar.View>
-        </Stack.Toolbar>
-      ) : null}
+      <View className="flex-1">
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          style={{ flex: 1, paddingTop: 15 }}
+          className="flex-1 px-4"
+          contentContainerStyle={{
+            paddingBottom: 48,
+          }}
+        >
+          {!subscriptionId && (
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+              유효하지 않은 구독입니다.
+            </Text>
+          )}
 
-      <ScrollView
-        style={{ flex: 1, paddingTop: headerHeight + 15 }}
-        className="flex-1 px-4"
-        contentContainerStyle={{ paddingBottom: 48 }}
-      >
-        {!subscriptionId ? (
-          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-            유효하지 않은 구독입니다.
-          </Text>
-        ) : null}
+          {subscriptionId && subscription === null && (
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+              구독 정보를 찾을 수 없습니다.
+            </Text>
+          )}
 
-        {subscriptionId && subscription === null ? (
-          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-            구독 정보를 찾을 수 없습니다.
-          </Text>
-        ) : null}
+          {subscription && amountParts && (
+            <Card
+              variant="default"
+              className="overflow-hidden rounded-[30px] p-5 shadow-lg shadow-neutral-300/10 dark:shadow-none"
+            >
+              <Card.Body className="items-center gap-4 px-1 py-2">
+                <SubscriptionInitialBadge
+                  name={subscription.name}
+                  size="hero"
+                />
 
-        {subscription ? (
-          <Card variant="default" className="p-4 gap-4 shadow-none">
-            <Card.Header className="gap-1">
-              <Card.Title className="text-xl font-semibold text-black dark:text-white">
-                {subscription.name}
-              </Card.Title>
-              <Card.Description className="text-sm text-neutral-500 dark:text-neutral-400">
-                {formatAmount(
-                  subscription.amount,
-                  subscription.currency,
-                  currencyDisplayMode,
-                )}
-              </Card.Description>
-            </Card.Header>
+                <View className="items-center gap-1">
+                  <Card.Title className="text-2xl font-semibold text-black dark:text-white">
+                    {subscription.name}
+                  </Card.Title>
+                  <Card.Description className="text-base text-foreground/45">
+                    {subscription.categoryName}
+                  </Card.Description>
+                </View>
 
-            <Separator className="opacity-40" />
+                <View className="items-center gap-1 mb-4">
+                  <View className="flex-row items-baseline gap-0.5">
+                    {amountParts.currencyLabelPosition === "prefix" && (
+                      <Text
+                        className="text-2xl font-bold text-black dark:text-white"
+                        style={{ fontVariant: ["tabular-nums"] }}
+                      >
+                        {amountParts.currencyLabel}
+                      </Text>
+                    )}
+                    <Text
+                      className="text-4xl font-bold text-black dark:text-white"
+                      style={{ fontVariant: ["tabular-nums"] }}
+                    >
+                      {amountParts.value}
+                    </Text>
+                    {amountParts.currencyLabelPosition === "suffix" && (
+                      <Text className="text-2xl font-bold text-black dark:text-white">
+                        {amountParts.currencyLabel}
+                      </Text>
+                    )}
+                  </View>
 
-            <Card.Body className="gap-4">
-              <DetailRow label="카테고리" value={subscription.categoryName} />
-              <DetailRow
-                label="결제 주기"
-                value={billingCycleLabelMap[subscription.billingCycle]}
-              />
-              <DetailRow
-                label="결제일"
-                value={formatYmd(subscription.billingDate)}
-              />
-              <DetailRow
-                label="다음 청구일"
-                value={formatYmd(subscription.nextBillingDate)}
-              />
-              <DetailRow
-                label="Pin 상태"
-                value={subscription.isPinned ? "고정됨" : "고정 안 함"}
-              />
-              <DetailRow
-                label="메모"
-                value={subscription.memo?.trim() ? subscription.memo : "없음"}
-              />
-            </Card.Body>
-          </Card>
-        ) : null}
-      </ScrollView>
+                  <Text className="text-base text-foreground/45">
+                    {getBillingSummaryLabel(subscription.billingCycle)}
+                  </Text>
+                </View>
+              </Card.Body>
+
+              <Separator className="opacity-30" />
+
+              <Card.Footer className="flex-col gap-3 px-2 py-4">
+                <DetailInfoRow
+                  icon={<CalendarIcon size={20} className="text-foreground" />}
+                  label="다음 청구일"
+                  value={formatYmd(subscription.nextBillingDate)}
+                />
+                <DetailInfoRow
+                  icon={<RefreshCwIcon size={20} className="text-foreground" />}
+                  label="결제 주기"
+                  value={getBillingCycleValue(
+                    subscription.billingDate,
+                    subscription.billingCycle,
+                  )}
+                />
+              </Card.Footer>
+            </Card>
+          )}
+        </ScrollView>
+
+        {subscription && (
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.View>
+              <View style={{ width: 36, height: 36 }}>
+                <Pressable
+                  onPressIn={hapticImpactLight}
+                  onPress={() => {
+                    router.navigate(`/subscriptions/${subscription.id}/edit`);
+                  }}
+                  hitSlop={8}
+                  className="flex-1 items-center justify-center"
+                >
+                  <PencilIcon className="text-black dark:text-white" />
+                </Pressable>
+              </View>
+            </Stack.Toolbar.View>
+
+            <Stack.Toolbar.View>
+              <View style={{ width: 36, height: 36 }}>
+                <Pressable
+                  onPressIn={hapticImpactLight}
+                  onPress={handleDeletePress}
+                  hitSlop={8}
+                  className="flex-1 items-center justify-center"
+                >
+                  <Trash2Icon className="text-danger" />
+                </Pressable>
+              </View>
+            </Stack.Toolbar.View>
+          </Stack.Toolbar>
+        )}
+      </View>
     </>
   );
 }

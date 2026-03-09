@@ -20,8 +20,6 @@ export interface Subscription {
   billingDate: string;
   categoryId: string;
   isActive: boolean;
-  isPinned: boolean;
-  pinnedAt: string | null;
   memo: string | null;
   createdAt: string;
   updatedAt: string;
@@ -153,8 +151,6 @@ function mapSubscriptionRow(row: {
   billingDate: string;
   categoryId: string;
   isActive: number;
-  isPinned: number;
-  pinnedAt: string | null;
   memo: string | null;
   createdAt: string;
   updatedAt: string;
@@ -178,8 +174,6 @@ function mapSubscriptionRow(row: {
     billingDate: row.billingDate,
     categoryId: row.categoryId,
     isActive: row.isActive === 1,
-    isPinned: row.isPinned === 1,
-    pinnedAt: row.pinnedAt,
     memo: row.memo,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -218,8 +212,6 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
       billingDate TEXT NOT NULL,
       categoryId TEXT NOT NULL,
       isActive INTEGER NOT NULL DEFAULT 1,
-      isPinned INTEGER NOT NULL DEFAULT 0,
-      pinnedAt TEXT,
       memo TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
@@ -232,23 +224,6 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_subscriptions_is_active
       ON subscriptions(isActive);
   `);
-}
-
-async function migrateSubscriptionsSchema(database: SQLiteDatabase): Promise<void> {
-  const columns = await database.getAllAsync<{ name: string }>(
-    `PRAGMA table_info(subscriptions)`,
-  );
-  const columnSet = new Set(columns.map((column) => column.name));
-
-  if (!columnSet.has("isPinned")) {
-    await database.execAsync(
-      `ALTER TABLE subscriptions ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0`,
-    );
-  }
-
-  if (!columnSet.has("pinnedAt")) {
-    await database.execAsync(`ALTER TABLE subscriptions ADD COLUMN pinnedAt TEXT`);
-  }
 }
 
 async function seedPresetCategories(database: SQLiteDatabase): Promise<void> {
@@ -270,7 +245,6 @@ async function ensureInitialized(): Promise<void> {
     initializePromise = (async () => {
       const database = await getDatabase();
       await createSchema(database);
-      await migrateSubscriptionsSchema(database);
       await seedPresetCategories(database);
     })().catch((error) => {
       initializePromise = null;
@@ -543,12 +517,10 @@ export async function createSubscription(
         billingDate,
         categoryId,
         isActive,
-        isPinned,
-        pinnedAt,
         memo,
         createdAt,
         updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
@@ -559,8 +531,6 @@ export async function createSubscription(
       input.billingDate,
       input.categoryId,
       input.isActive === false ? 0 : 1,
-      0,
-      null,
       normalizeMemo(input.memo),
       now,
       now,
@@ -605,8 +575,6 @@ export async function listSubscriptions(
     billingDate: string;
     categoryId: string;
     isActive: number;
-    isPinned: number;
-    pinnedAt: string | null;
     memo: string | null;
     createdAt: string;
     updatedAt: string;
@@ -623,8 +591,6 @@ export async function listSubscriptions(
         s.billingDate,
         s.categoryId,
         s.isActive,
-        s.isPinned,
-        s.pinnedAt,
         s.memo,
         s.createdAt,
         s.updatedAt,
@@ -633,7 +599,7 @@ export async function listSubscriptions(
       FROM subscriptions s
       INNER JOIN categories c ON c.id = s.categoryId
       ${whereClause}
-      ORDER BY s.isPinned DESC, s.pinnedAt DESC, s.createdAt DESC
+      ORDER BY s.createdAt DESC
     `,
     params,
   );
@@ -656,8 +622,6 @@ export async function getSubscriptionById(
     billingDate: string;
     categoryId: string;
     isActive: number;
-    isPinned: number;
-    pinnedAt: string | null;
     memo: string | null;
     createdAt: string;
     updatedAt: string;
@@ -674,8 +638,6 @@ export async function getSubscriptionById(
         s.billingDate,
         s.categoryId,
         s.isActive,
-        s.isPinned,
-        s.pinnedAt,
         s.memo,
         s.createdAt,
         s.updatedAt,
@@ -801,33 +763,4 @@ export async function deleteSubscription(subscriptionId: string): Promise<void> 
   if (result.changes === 0) {
     throw new Error("Subscription not found.");
   }
-}
-
-export async function setSubscriptionPinned(
-  subscriptionId: string,
-  isPinned: boolean,
-): Promise<SubscriptionWithCategory> {
-  await ensureInitialized();
-  const database = await getDatabase();
-
-  const now = nowIsoString();
-  const result = await database.runAsync(
-    `
-      UPDATE subscriptions
-      SET isPinned = ?, pinnedAt = ?, updatedAt = ?
-      WHERE id = ?
-    `,
-    [isPinned ? 1 : 0, isPinned ? now : null, now, subscriptionId],
-  );
-
-  if (result.changes === 0) {
-    throw new Error("Subscription not found.");
-  }
-
-  const updated = await getSubscriptionById(subscriptionId);
-  if (!updated) {
-    throw new Error("Failed to load updated subscription.");
-  }
-
-  return updated;
 }

@@ -5,9 +5,8 @@ import type {
   BillingCycle,
   SubscriptionWithCategory,
 } from "@/lib/subscription-store";
-import { clsx } from "clsx";
-import { Card, Separator } from "heroui-native";
-import { Pin, PinOff } from "lucide-react-native";
+import { SubscriptionInitialBadge } from "@/components/subscriptions/subscription-initial-badge";
+import { Card } from "heroui-native";
 import { PencilIcon, Trash2Icon } from "lucide-uniwind";
 import { useCallback, type ReactNode, type RefObject } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -26,7 +25,6 @@ import Reanimated, {
 } from "react-native-reanimated";
 
 const ACTION_BUTTON_SIZE = 48;
-const PIN_ACTION_WIDTH = ACTION_BUTTON_SIZE;
 const EDIT_ACTION_WIDTH = ACTION_BUTTON_SIZE;
 const DELETE_ACTION_WIDTH = ACTION_BUTTON_SIZE;
 const RIGHT_ACTION_GAP = 8;
@@ -39,15 +37,6 @@ const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 function parseYmdToDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day);
-}
-
-function getSubscriptionInitial(name: string) {
-  const trimmedName = name.trim();
-  const firstCharacter = Array.from(trimmedName)[0] ?? "?";
-
-  return /^[a-z]$/i.test(firstCharacter)
-    ? firstCharacter.toUpperCase()
-    : firstCharacter;
 }
 
 function getRecurringBillingLabel(
@@ -130,60 +119,6 @@ function ActionButton({ width, className, icon, onPress }: ActionButtonProps) {
         {icon}
       </View>
     </Pressable>
-  );
-}
-
-interface LeftActionsProps {
-  drag: SharedValue<number>;
-  isPinned: boolean;
-  onTogglePin: () => void;
-  swipeableMethods: SwipeableMethods;
-}
-
-function LeftActions({
-  drag,
-  isPinned,
-  onTogglePin,
-  swipeableMethods,
-}: LeftActionsProps) {
-  const pinScale = useDerivedValue(() =>
-    interpolate(drag.value, [0, PIN_ACTION_WIDTH], [0, 1], Extrapolation.CLAMP),
-  );
-
-  useSwipeActionHaptic(pinScale);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        {
-          scale: pinScale.value,
-        },
-      ],
-    };
-  }, [pinScale]);
-
-  return (
-    <Reanimated.View
-      style={[animatedStyle, { width: PIN_ACTION_WIDTH }]}
-      className="flex justify-center items-center mr-2"
-    >
-      <ActionButton
-        width={PIN_ACTION_WIDTH}
-        className="bg-success w-12 h-12 rounded-full"
-        icon={
-          isPinned ? (
-            <PinOff size={22} color="#ffffff" />
-          ) : (
-            <Pin size={22} color="#ffffff" />
-          )
-        }
-        onPress={() => {
-          hapticImpactLight();
-          swipeableMethods.close();
-          onTogglePin();
-        }}
-      />
-    </Reanimated.View>
   );
 }
 
@@ -297,7 +232,6 @@ interface SubscriptionCardProps {
   subscription: SubscriptionWithCategory;
   swipeableRef?: RefObject<SwipeableMethods | null>;
   onPress?: () => void;
-  onTogglePin: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onSwipeableWillOpen?: () => void;
@@ -308,14 +242,12 @@ export function SubscriptionCard({
   subscription,
   swipeableRef,
   onPress,
-  onTogglePin,
   onEdit,
   onDelete,
   onSwipeableWillOpen,
   onSwipeableClose,
 }: SubscriptionCardProps) {
   const { currencyDisplayMode } = useAppSettings();
-  const subscriptionInitial = getSubscriptionInitial(subscription.name);
   const recurringBillingLabel = getRecurringBillingLabel(
     subscription.billingDate,
     subscription.billingCycle,
@@ -333,24 +265,6 @@ export function SubscriptionCard({
     hapticImpactLight();
     onPress?.();
   }, [onPress]);
-
-  const renderLeftActions = useCallback(
-    (
-      _progress: SharedValue<number>,
-      drag: SharedValue<number>,
-      swipeableMethods: SwipeableMethods,
-    ) => {
-      return (
-        <LeftActions
-          drag={drag}
-          isPinned={subscription.isPinned}
-          onTogglePin={onTogglePin}
-          swipeableMethods={swipeableMethods}
-        />
-      );
-    },
-    [onTogglePin, subscription.isPinned],
-  );
 
   const renderRightActions = useCallback(
     (
@@ -375,15 +289,11 @@ export function SubscriptionCard({
       ref={swipeableRef}
       friction={4}
       rightThreshold={20}
-      leftThreshold={20}
-      dragOffsetFromLeftEdge={10}
       dragOffsetFromRightEdge={10}
-      overshootLeft={false}
       overshootRight={false}
       enableTrackpadTwoFingerGesture
       containerStyle={{ borderRadius: 24, overflow: "visible" }}
       childrenContainerStyle={{ borderRadius: 24, overflow: "visible" }}
-      renderLeftActions={renderLeftActions}
       renderRightActions={renderRightActions}
       onSwipeableWillOpen={() => onSwipeableWillOpen?.()}
       onSwipeableClose={() => onSwipeableClose?.()}
@@ -391,15 +301,11 @@ export function SubscriptionCard({
       <Pressable onPress={handlePress}>
         <Card
           variant="default"
-          className="gap-3 p-4 shadow-lg shadow-neutral-300/10 dark:shadow-none"
+          className="p-4 shadow-lg shadow-neutral-300/10 dark:shadow-none"
         >
-          <Card.Body className="gap-1.5">
+          <Card.Body className="gap-1.5 p-0">
             <View className="flex-row items-start gap-3">
-              <View className="h-13 w-13 items-center justify-center rounded-2xl bg-surface-secondary dark:bg-surface-secondary">
-                <Text className="text-lg font-bold text-surface-foreground">
-                  {subscriptionInitial}
-                </Text>
-              </View>
+              <SubscriptionInitialBadge name={subscription.name} size="card" />
 
               <View className="min-w-0 flex-1 gap-1.5">
                 <View className="flex-row items-start justify-between gap-3">
@@ -428,51 +334,41 @@ export function SubscriptionCard({
 
                 <View className="flex-row items-center justify-between gap-3">
                   <Card.Description
-                    className="text-sm text-foreground/50"
+                    className="min-w-0 flex-1 text-sm text-foreground/50"
                     numberOfLines={1}
                   >
                     {subscription.categoryName}
                   </Card.Description>
-                  <Card.Description
-                    className="text-sm text-foreground/50"
-                    numberOfLines={1}
-                  >
-                    {recurringBillingLabel}
-                  </Card.Description>
+                  <View className="flex-row shrink-0 items-center gap-1.5">
+                    <Card.Description
+                      className="text-sm text-foreground/50"
+                      numberOfLines={1}
+                    >
+                      {recurringBillingLabel}
+                    </Card.Description>
+                    <Text className="text-sm text-foreground/40">/</Text>
+                    <View
+                      className={
+                        isDueToday
+                          ? "rounded-full bg-success-soft px-2 py-0.5"
+                          : "rounded-full bg-surface-secondary px-2 py-0.5 dark:bg-surface-secondary"
+                      }
+                    >
+                      <Text
+                        className={
+                          isDueToday
+                            ? "text-[11px] font-semibold text-success"
+                            : "text-[11px] font-semibold text-foreground/50"
+                        }
+                      >
+                        {ddayLabel}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
               </View>
             </View>
           </Card.Body>
-
-          <Separator className="opacity-50" />
-
-          <Card.Footer
-            className={clsx(
-              "pt-0 flex-row items-center",
-              subscription.isPinned ? "justify-between" : "justify-end",
-            )}
-          >
-            {subscription.isPinned && (
-              <Text className="text-xs font-semibold text-success">고정됨</Text>
-            )}
-            <View
-              className={clsx(
-                "rounded-full px-2.5 py-1",
-                isDueToday
-                  ? "bg-success-soft"
-                  : "bg-surface-secondary dark:bg-surface-secondary",
-              )}
-            >
-              <Text
-                className={clsx(
-                  "text-xs font-semibold",
-                  isDueToday ? "text-success" : "text-foreground/50",
-                )}
-              >
-                {ddayLabel}
-              </Text>
-            </View>
-          </Card.Footer>
         </Card>
       </Pressable>
     </ReanimatedSwipeable>
