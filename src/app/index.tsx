@@ -1,4 +1,6 @@
 import { SubscriptionCard } from "@/components/subscriptions/subscription-card";
+import { SubscriptionCategoryFilter } from "@/components/subscriptions/subscription-category-filter";
+import { SubscriptionSortSelect } from "@/components/subscriptions/subscription-sort-select";
 import { SubscriptionSummaryCard } from "@/components/subscriptions/subscription-summary-card";
 import { hapticImpactLight } from "@/lib/haptics";
 import {
@@ -10,15 +12,81 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useRouter } from "expo-router";
 import { Button } from "heroui-native";
 import { PlusIcon, SettingsIcon } from "lucide-uniwind";
-import React, { useCallback, useRef, useState } from "react";
-import { Alert, FlatList, Pressable, Text, View } from "react-native";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Alert,
+  FlatList,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+
+const ALL_CATEGORY_KEY = "all";
+const SORT_OPTIONS = [
+  { value: "billing-date", label: "결제일 가까운 순" },
+  { value: "amount-desc", label: "금액순" },
+] as const;
+
+type SortKey = (typeof SORT_OPTIONS)[number]["value"];
+type SortOption = (typeof SORT_OPTIONS)[number];
+
+function compareByBillingDate(
+  a: SubscriptionWithCategory,
+  b: SubscriptionWithCategory,
+) {
+  const billingDateDiff = a.nextBillingDate.localeCompare(b.nextBillingDate);
+  if (billingDateDiff !== 0) {
+    return billingDateDiff;
+  }
+
+  return b.createdAt.localeCompare(a.createdAt);
+}
+
+function compareByAmountDesc(
+  a: SubscriptionWithCategory,
+  b: SubscriptionWithCategory,
+) {
+  const amountDiff = b.amount - a.amount;
+  if (amountDiff !== 0) {
+    return amountDiff;
+  }
+
+  const billingDateDiff = a.nextBillingDate.localeCompare(b.nextBillingDate);
+  if (billingDateDiff !== 0) {
+    return billingDateDiff;
+  }
+
+  return b.createdAt.localeCompare(a.createdAt);
+}
+
+function sortSubscriptions(
+  subscriptions: SubscriptionWithCategory[],
+  sortKey: SortKey,
+) {
+  const nextSubscriptions = [...subscriptions];
+
+  nextSubscriptions.sort(
+    sortKey === "amount-desc" ? compareByAmountDesc : compareByBillingDate,
+  );
+
+  return nextSubscriptions;
+}
 
 export default function HomeRoute() {
   const router = useRouter();
   const [subscriptions, setSubscriptions] = useState<
     SubscriptionWithCategory[] | null
   >(null);
+  const [selectedCategoryKey, setSelectedCategoryKey] =
+    useState<string>(ALL_CATEGORY_KEY);
+  const [sortOption, setSortOption] = useState<SortOption>(SORT_OPTIONS[0]);
   const swipeableMapRef = useRef<
     Record<string, { current: SwipeableMethods | null }>
   >({});
@@ -114,6 +182,42 @@ export default function HomeRoute() {
   );
 
   const isEmptyState = subscriptions !== null && subscriptions.length === 0;
+  const categoryFilters = useMemo(() => {
+    const filters =
+      subscriptions?.reduce<{ id: string; name: string }[]>((acc, item) => {
+        if (!acc.some((category) => category.id === item.categoryId)) {
+          acc.push({ id: item.categoryId, name: item.categoryName });
+        }
+
+        return acc;
+      }, []) ?? [];
+
+    filters.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    return filters;
+  }, [subscriptions]);
+  const filteredSubscriptions = useMemo(() => {
+    if (selectedCategoryKey === ALL_CATEGORY_KEY) {
+      return subscriptions ?? [];
+    }
+
+    return (subscriptions ?? []).filter(
+      (subscription) => subscription.categoryId === selectedCategoryKey,
+    );
+  }, [selectedCategoryKey, subscriptions]);
+  const visibleSubscriptions = useMemo(
+    () => sortSubscriptions(filteredSubscriptions, sortOption.value),
+    [filteredSubscriptions, sortOption.value],
+  );
+
+  useEffect(() => {
+    const hasSelectedCategory =
+      selectedCategoryKey === ALL_CATEGORY_KEY ||
+      categoryFilters.some((category) => category.id === selectedCategoryKey);
+
+    if (!hasSelectedCategory) {
+      setSelectedCategoryKey(ALL_CATEGORY_KEY);
+    }
+  }, [categoryFilters, selectedCategoryKey]);
 
   return (
     <>
@@ -158,7 +262,7 @@ export default function HomeRoute() {
         <FlatList
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="automatic"
-          data={subscriptions ?? []}
+          data={visibleSubscriptions}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <SubscriptionCard
@@ -192,6 +296,21 @@ export default function HomeRoute() {
               <Text className="mb-3 mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
                 구독 목록
               </Text>
+
+              <View className="mb-3 flex-row items-center gap-2">
+                <SubscriptionCategoryFilter
+                  categories={categoryFilters}
+                  selectedCategoryKey={selectedCategoryKey}
+                  onSelectionChange={setSelectedCategoryKey}
+                />
+                <SubscriptionSortSelect
+                  value={sortOption}
+                  options={SORT_OPTIONS}
+                  onValueChange={(nextSortOption) =>
+                    setSortOption(nextSortOption as SortOption)
+                  }
+                />
+              </View>
             </>
           }
         />
