@@ -308,7 +308,7 @@ export function SubscriptionCard({
       <Pressable onPress={handlePress}>
         <Card
           variant="default"
-          className="p-4 shadow-lg shadow-neutral-300/10 dark:shadow-none"
+          className="p-4 px-4.5 shadow-lg shadow-neutral-300/10 dark:shadow-none"
         >
           <Card.Body className="gap-1.5 p-0">
             <View className="flex-row items-start gap-3">
@@ -341,19 +341,12 @@ export function SubscriptionCard({
 
                 <View className="flex-row items-center justify-between gap-3">
                   <Card.Description
-                    className="min-w-0 flex-1 text-sm text-foreground/50"
+                    className="min-w-0 flex-1 text-xs text-foreground/50"
                     numberOfLines={1}
                   >
-                    {subscription.categoryName}
+                    {recurringBillingLabel}
                   </Card.Description>
                   <View className="flex-row shrink-0 items-center gap-1.5">
-                    <Card.Description
-                      className="text-sm text-foreground/50"
-                      numberOfLines={1}
-                    >
-                      {recurringBillingLabel}
-                    </Card.Description>
-                    <Text className="text-sm text-foreground/40">/</Text>
                     <View
                       className={
                         isDueToday

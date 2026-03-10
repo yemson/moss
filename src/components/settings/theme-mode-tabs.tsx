@@ -1,3 +1,4 @@
+import { hapticSelection } from "@/lib/haptics";
 import { Tabs } from "heroui-native";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-uniwind";
 import { View } from "react-native";
@@ -43,7 +44,7 @@ export function ThemeModeTabs() {
         <Tabs.List>
           <Tabs.Indicator />
           {THEME_TABS.map(({ value, Icon }) => (
-            <Tabs.Trigger key={value} value={value}>
+            <Tabs.Trigger onPressIn={hapticSelection} key={value} value={value}>
               {({ isSelected }) => (
                 <>
                   <Icon

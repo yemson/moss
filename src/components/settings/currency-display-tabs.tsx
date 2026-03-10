@@ -4,6 +4,7 @@ import {
   isCurrencyDisplayMode,
   type CurrencyDisplayMode,
 } from "@/lib/currency-display";
+import { hapticSelection } from "@/lib/haptics";
 import { Tabs } from "heroui-native";
 import { View } from "react-native";
 
@@ -26,7 +27,7 @@ export function CurrencyDisplayTabs() {
         <Tabs.List>
           <Tabs.Indicator />
           {CURRENCY_DISPLAY_OPTIONS.map((value) => (
-            <Tabs.Trigger key={value} value={value}>
+            <Tabs.Trigger onPressIn={hapticSelection} key={value} value={value}>
               <Tabs.Label className="text-sm">
                 {CURRENCY_DISPLAY_TAB_LABELS[value]}
               </Tabs.Label>

@@ -4,8 +4,8 @@ export const DEFAULT_CURRENCY_DISPLAY_MODE: CurrencyDisplayMode = "text";
 
 export const CURRENCY_DISPLAY_TAB_LABELS: Record<CurrencyDisplayMode, string> =
   {
-    symbol: "₩ / $",
-    text: "원 / 달러",
+    symbol: "₩ · $",
+    text: "원 · 달러",
   };
 
 export const isCurrencyDisplayMode = (
