@@ -13,20 +13,18 @@ import {
   updateSubscription,
   type BillingCycle,
   type Currency,
+  type Category,
   type SubscriptionWithCategory,
 } from "@/lib/subscription-store";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { CheckIcon } from "lucide-uniwind";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Keyboard, Pressable, Text, View } from "react-native";
 
 export default function EditSubscriptionRoute() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const subscriptionId = resolveId(params.id);
-  const [loadedSubscription, setLoadedSubscription] = useState<
-    SubscriptionWithCategory | null | undefined
-  >(undefined);
   const [serviceName, setServiceName] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("KRW");
@@ -34,84 +32,73 @@ export default function EditSubscriptionRoute() {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [memo, setMemo] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [billingDateValue, setBillingDateValue] = useState(new Date());
   const [billingDateDraft, setBillingDateDraft] = useState(new Date());
   const [isBillingDateDialogOpen, setIsBillingDateDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const initializedSubscriptionIdRef = useRef<string | null>(null);
+  const [categories, setCategories] = useState<Category[] | null>(null);
+  const [loadedSubscription, setLoadedSubscription] = useState<
+    SubscriptionWithCategory | null | undefined
+  >(undefined);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadEditorData = async () => {
-      if (!subscriptionId) {
-        setLoadedSubscription(null);
-        return;
-      }
-
+    void (async () => {
       try {
-        const [categoriesResult, subscriptionResult] = await Promise.allSettled(
-          [listCategories(), getSubscriptionById(subscriptionId)],
-        );
-
-        if (!isMounted) {
-          return;
-        }
-
-        if (categoriesResult.status === "fulfilled") {
-          const options = categoriesResult.value.map((category) => ({
-            value: category.id,
-            label: category.name,
-          }));
-
-          setCategoryOptions(options);
-        } else {
-          console.error("Failed to load categories:", categoriesResult.reason);
-        }
-
-        if (subscriptionResult.status === "rejected") {
-          console.error(
-            "Failed to load subscription editor data:",
-            subscriptionResult.reason,
-          );
-          setLoadedSubscription(null);
-          return;
-        }
-
-        const subscription = subscriptionResult.value;
-        if (!subscription) {
-          setLoadedSubscription(null);
-          return;
-        }
-
-        const billingDateAsDate = ymdToDate(subscription.billingDate);
-
-        setCategoryId(subscription.categoryId);
-        setServiceName(subscription.name);
-        setAmount(String(subscription.amount));
-        setCurrency(subscription.currency);
-        setBillingDate(subscription.billingDate);
-        setBillingCycle(subscription.billingCycle);
-        setMemo(subscription.memo ?? "");
-        setBillingDateValue(billingDateAsDate);
-        setBillingDateDraft(billingDateAsDate);
-        setLoadedSubscription(subscription);
+        setCategories(await listCategories());
       } catch (error) {
-        console.error("Failed to load subscription editor data:", error);
-        if (!isMounted) {
-          return;
-        }
+        console.error("Failed to load categories:", error);
+        setCategories([]);
+      }
+    })();
+  }, [subscriptionId]);
 
+  useEffect(() => {
+    if (!subscriptionId) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        setLoadedSubscription(await getSubscriptionById(subscriptionId));
+      } catch (error) {
+        console.error("Failed to load subscription detail:", error);
         setLoadedSubscription(null);
       }
-    };
-
-    void loadEditorData();
-
-    return () => {
-      isMounted = false;
-    };
+    })();
   }, [subscriptionId]);
+
+  const categoryOptions = useMemo<SelectOption[]>(
+    () =>
+      (categories ?? []).map((category) => ({
+        value: category.id,
+        label: category.name,
+      })),
+    [categories],
+  );
+
+  useEffect(() => {
+    if (!loadedSubscription) {
+      return;
+    }
+
+    if (initializedSubscriptionIdRef.current === loadedSubscription.id) {
+      return;
+    }
+
+    const billingDateAsDate = ymdToDate(loadedSubscription.billingDate);
+
+    setCategoryId(loadedSubscription.categoryId);
+    setServiceName(loadedSubscription.name);
+    setAmount(String(loadedSubscription.amount));
+    setCurrency(loadedSubscription.currency);
+    setBillingDate(loadedSubscription.billingDate);
+    setBillingCycle(loadedSubscription.billingCycle);
+    setMemo(loadedSubscription.memo ?? "");
+    setBillingDateValue(billingDateAsDate);
+    setBillingDateDraft(billingDateAsDate);
+    initializedSubscriptionIdRef.current = loadedSubscription.id;
+  }, [loadedSubscription]);
 
   const handleBillingDateDialogOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
@@ -238,7 +225,7 @@ export default function EditSubscriptionRoute() {
         </View>
       )}
 
-      {loadedSubscription && (
+      {subscriptionId && loadedSubscription !== null && (
         <SubscriptionForm
           mode="edit"
           values={{

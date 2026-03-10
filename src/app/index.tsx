@@ -19,19 +19,13 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  Alert,
-  FlatList,
-  Pressable,
-  Text,
-  View,
-} from "react-native";
+import { Alert, FlatList, Pressable, Text, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 const ALL_CATEGORY_KEY = "all";
 const SORT_OPTIONS = [
   { value: "billing-date", label: "결제일 가까운 순" },
-  { value: "amount-desc", label: "금액순" },
+  { value: "amount-desc", label: "큰 금액 순" },
 ] as const;
 
 type SortKey = (typeof SORT_OPTIONS)[number]["value"];
@@ -94,8 +88,8 @@ export default function HomeRoute() {
 
   const loadSubscriptions = useCallback(async () => {
     try {
-      const data = await listSubscriptions({ isActive: true });
-      setSubscriptions(data);
+      const nextSubscriptions = await listSubscriptions({ isActive: true });
+      setSubscriptions(nextSubscriptions);
     } catch (error) {
       console.error("Failed to load subscriptions:", error);
       setSubscriptions((currentSubscriptions) => currentSubscriptions ?? []);

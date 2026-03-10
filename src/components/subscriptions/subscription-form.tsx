@@ -8,7 +8,6 @@ import {
 } from "@/lib/subscription-editor";
 import type { BillingCycle, Currency } from "@/lib/subscription-store";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useHeaderHeight } from "@react-navigation/elements";
 import {
   Button,
   Dialog,
@@ -73,7 +72,6 @@ export function SubscriptionForm({
   onCategoryChange,
   onMemoChange,
 }: SubscriptionFormProps) {
-  const headerHeight = useHeaderHeight();
   const scrollViewRef = useRef<ScrollView>(null);
   const { width: screenWidth } = useWindowDimensions();
   const billingDatePickerHeight = SPINNER_PICKER_HEIGHT;
@@ -121,8 +119,9 @@ export function SubscriptionForm({
       keyboardVerticalOffset={8}
     >
       <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
         ref={scrollViewRef}
-        style={{ flex: 1, paddingTop: headerHeight + 15 }}
+        style={{ flex: 1, paddingTop: 15 }}
         className="flex-1 px-4"
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="none"
@@ -137,9 +136,10 @@ export function SubscriptionForm({
               className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
               value={values.serviceName}
               onChangeText={onServiceNameChange}
-              onFocus={(event) =>
-                scrollToFocusedField(event.nativeEvent.target)
-              }
+              onFocus={(event) => {
+                hapticSelection();
+                scrollToFocusedField(event.nativeEvent.target);
+              }}
               placeholder="예: Netflix"
               autoCapitalize="none"
             />
@@ -152,6 +152,8 @@ export function SubscriptionForm({
             <Select
               value={selectedCategory}
               onValueChange={(nextValue) => {
+                hapticSelection();
+
                 if (nextValue) {
                   onCategoryChange(nextValue.value);
                 }
@@ -199,9 +201,10 @@ export function SubscriptionForm({
                   className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
                   value={values.amount}
                   onChangeText={onAmountChange}
-                  onFocus={(event) =>
-                    scrollToFocusedField(event.nativeEvent.target)
-                  }
+                  onFocus={(event) => {
+                    hapticSelection();
+                    scrollToFocusedField(event.nativeEvent.target);
+                  }}
                   placeholder="예: 17000"
                   keyboardType="number-pad"
                 />
@@ -212,6 +215,8 @@ export function SubscriptionForm({
               <Select
                 value={selectedCurrency}
                 onValueChange={(nextValue) => {
+                  hapticSelection();
+
                   if (nextValue && isCurrency(nextValue.value)) {
                     onCurrencyChange(nextValue.value);
                   }
@@ -345,6 +350,8 @@ export function SubscriptionForm({
               <Select
                 value={selectedBillingCycle}
                 onValueChange={(nextValue) => {
+                  hapticSelection();
+
                   if (nextValue && isBillingCycle(nextValue.value)) {
                     onBillingCycleChange(nextValue.value);
                   }
@@ -396,9 +403,10 @@ export function SubscriptionForm({
               className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none min-h-28"
               value={values.memo}
               onChangeText={onMemoChange}
-              onFocus={(event) =>
-                scrollToFocusedField(event.nativeEvent.target)
-              }
+              onFocus={(event) => {
+                hapticSelection();
+                scrollToFocusedField(event.nativeEvent.target);
+              }}
               placeholder="필요한 내용을 메모로 남겨두세요"
             />
           </TextField>

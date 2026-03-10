@@ -8,12 +8,13 @@ import {
 import {
   createSubscription,
   listCategories,
+  type Category,
   type BillingCycle,
   type Currency,
 } from "@/lib/subscription-store";
 import { Stack, useRouter } from "expo-router";
 import { CheckIcon, XIcon } from "lucide-uniwind";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, Keyboard, Pressable, View } from "react-native";
 
 export default function NewSubscriptionRoute() {
@@ -25,47 +26,37 @@ export default function NewSubscriptionRoute() {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [memo, setMemo] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [billingDateValue, setBillingDateValue] = useState(new Date());
   const [billingDateDraft, setBillingDateDraft] = useState(new Date());
   const [isBillingDateDialogOpen, setIsBillingDateDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [categories, setCategories] = useState<Category[] | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadCategories = async () => {
+    void (async () => {
       try {
-        const categories = await listCategories();
-        if (!isMounted) {
-          return;
-        }
-
-        const options = categories.map((category) => ({
-          value: category.id,
-          label: category.name,
-        }));
-
-        setCategoryOptions(options);
-        setCategoryId(
-          (currentCategoryId) => currentCategoryId ?? options[0]?.value ?? null,
-        );
+        setCategories(await listCategories());
       } catch (error) {
         console.error("Failed to load categories:", error);
-        if (!isMounted) {
-          return;
-        }
-
-        Alert.alert("오류", "카테고리 목록을 불러오지 못했습니다.");
+        setCategories([]);
       }
-    };
-
-    void loadCategories();
-
-    return () => {
-      isMounted = false;
-    };
+    })();
   }, []);
+
+  const categoryOptions = useMemo<SelectOption[]>(
+    () =>
+      (categories ?? []).map((category) => ({
+        value: category.id,
+        label: category.name,
+      })),
+    [categories],
+  );
+
+  useEffect(() => {
+    setCategoryId(
+      (currentCategoryId) => currentCategoryId ?? categoryOptions[0]?.value ?? null,
+    );
+  }, [categoryOptions]);
 
   const handleBillingDateDialogOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {

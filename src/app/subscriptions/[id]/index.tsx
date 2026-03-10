@@ -18,7 +18,7 @@ import {
   RefreshCwIcon,
   Trash2Icon,
 } from "lucide-uniwind";
-import { useCallback, type ReactNode, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 
 function getBillingSummaryLabel(billingCycle: BillingCycle) {
@@ -70,20 +70,22 @@ export default function SubscriptionDetailRoute() {
     SubscriptionWithCategory | null | undefined
   >(undefined);
 
-  const loadSubscription = useCallback(async () => {
-    if (!subscriptionId) {
-      setSubscription(null);
-      return;
-    }
+  useFocusEffect(
+    useCallback(() => {
+      if (!subscriptionId) {
+        return;
+      }
 
-    try {
-      const detail = await getSubscriptionById(subscriptionId);
-      setSubscription(detail);
-    } catch (error) {
-      console.error("Failed to load subscription detail:", error);
-      setSubscription((currentSubscription) => currentSubscription ?? null);
-    }
-  }, [subscriptionId]);
+      void (async () => {
+        try {
+          setSubscription(await getSubscriptionById(subscriptionId));
+        } catch (error) {
+          console.error("Failed to load subscription detail:", error);
+          setSubscription(null);
+        }
+      })();
+    }, [subscriptionId]),
+  );
 
   const handleDeletePress = useCallback(() => {
     if (!subscription) {
@@ -111,12 +113,6 @@ export default function SubscriptionDetailRoute() {
     ]);
   }, [router, subscription]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadSubscription();
-    }, [loadSubscription]),
-  );
-
   const amountParts = subscription
     ? formatAmountParts(
         subscription.amount,
@@ -126,7 +122,7 @@ export default function SubscriptionDetailRoute() {
     : null;
 
   return (
-    <View className="flex-1">
+    <>
       <Stack.Screen
         options={{
           title: "구독 상세",
@@ -149,7 +145,6 @@ export default function SubscriptionDetailRoute() {
             </Pressable>
           </View>
         </Stack.Toolbar.View>
-
         <Stack.Toolbar.View>
           <View style={{ width: 36, height: 36 }}>
             <Pressable
@@ -255,6 +250,6 @@ export default function SubscriptionDetailRoute() {
           )}
         </ScrollView>
       </View>
-    </View>
+    </>
   );
 }
