@@ -208,7 +208,9 @@ function RightActions({
           className="bg-info"
           icon={<PencilIcon size={22} className="text-info-foreground" />}
           onPress={() => {
-            swipeableMethods.close();
+            setTimeout(() => {
+              swipeableMethods.close();
+            }, 100);
             hapticImpactLight();
             onEdit();
           }}
