@@ -113,23 +113,14 @@ export default function HomeRoute() {
     [handleDeleteConfirmed],
   );
 
-  const renderEmptyState = () => (
-    <View className="rounded-3xl border border-black/10 dark:border-white/10 px-4 py-5">
-      <Text className="text-base font-medium text-black dark:text-white">
-        등록된 구독이 없습니다.
-      </Text>
-      <Text className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-        우측 하단 + 버튼으로 첫 구독을 추가해보세요.
-      </Text>
-    </View>
-  );
+  const isEmptyState = subscriptions !== null && subscriptions.length === 0;
 
   return (
     <>
       <Stack.Screen
         options={{
-          title: "내 구독",
-          headerLargeTitleEnabled: true,
+          title: isEmptyState ? "" : "내 구독",
+          headerLargeTitleEnabled: !isEmptyState,
         }}
       />
 
@@ -152,47 +143,59 @@ export default function HomeRoute() {
         </Stack.Toolbar.View>
       </Stack.Toolbar>
 
-      <FlatList
-        showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
-        data={subscriptions ?? []}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <SubscriptionCard
-            swipeableRef={getSwipeableRef(item.id)}
-            onSwipeableWillOpen={() => handleSwipeableWillOpen(item.id)}
-            onSwipeableClose={() => handleSwipeableClose(item.id)}
-            onPress={() => {
-              if (consumeOpenedSwipeable()) {
-                return;
-              }
-
-              router.navigate(`/subscriptions/${item.id}`);
-            }}
-            onEdit={() => router.navigate(`/subscriptions/${item.id}/edit`)}
-            onDelete={() => handleDeletePress(item)}
-            subscription={item}
-          />
-        )}
-        onScrollBeginDrag={closeOpenedSwipeable}
-        ItemSeparatorComponent={() => <View className="h-3" />}
-        style={{ flex: 1, width: "100%", paddingHorizontal: 16 }}
-        className="flex-1 w-full px-4"
-        contentContainerStyle={{
-          paddingTop: 15,
-          paddingBottom: 100,
-        }}
-        ListHeaderComponent={
-          <>
-            <SubscriptionSummaryCard subscriptions={subscriptions ?? []} />
-
-            <Text className="mb-3 mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
-              구독 목록
+      {isEmptyState ? (
+        <View className="flex-1 items-center justify-center px-8">
+          <View className="items-center gap-2">
+            <Text className="text-base font-medium text-black dark:text-white">
+              등록된 구독이 없습니다.
             </Text>
-          </>
-        }
-        ListEmptyComponent={subscriptions === null ? null : renderEmptyState}
-      />
+            <Text className="text-sm text-center text-neutral-500 dark:text-neutral-400">
+              우측 하단 + 버튼으로 첫 구독을 추가해보세요.
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <FlatList
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          data={subscriptions ?? []}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <SubscriptionCard
+              swipeableRef={getSwipeableRef(item.id)}
+              onSwipeableWillOpen={() => handleSwipeableWillOpen(item.id)}
+              onSwipeableClose={() => handleSwipeableClose(item.id)}
+              onPress={() => {
+                if (consumeOpenedSwipeable()) {
+                  return;
+                }
+
+                router.navigate(`/subscriptions/${item.id}`);
+              }}
+              onEdit={() => router.navigate(`/subscriptions/${item.id}/edit`)}
+              onDelete={() => handleDeletePress(item)}
+              subscription={item}
+            />
+          )}
+          onScrollBeginDrag={closeOpenedSwipeable}
+          ItemSeparatorComponent={() => <View className="h-3" />}
+          style={{ flex: 1, width: "100%", paddingHorizontal: 16 }}
+          className="flex-1 w-full px-4"
+          contentContainerStyle={{
+            paddingTop: 15,
+            paddingBottom: 100,
+          }}
+          ListHeaderComponent={
+            <>
+              <SubscriptionSummaryCard subscriptions={subscriptions ?? []} />
+
+              <Text className="mb-3 mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
+                구독 목록
+              </Text>
+            </>
+          }
+        />
+      )}
 
       <Button
         onPressIn={hapticImpactLight}

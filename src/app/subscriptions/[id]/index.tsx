@@ -236,14 +236,14 @@ export default function SubscriptionDetailRoute() {
 
               <Separator className="opacity-30" />
 
-              <Card.Footer className="flex-col gap-3 px-2 py-4">
+              <Card.Footer className="flex-col gap-4 px-2 py-8">
                 <DetailInfoRow
-                  icon={<CalendarIcon size={20} className="text-foreground" />}
+                  icon={<CalendarIcon className="text-foreground" />}
                   label="다음 청구일"
                   value={formatYmd(subscription.nextBillingDate)}
                 />
                 <DetailInfoRow
-                  icon={<RefreshCwIcon size={20} className="text-foreground" />}
+                  icon={<RefreshCwIcon className="text-foreground" />}
                   label="결제 주기"
                   value={getBillingCycleValue(
                     subscription.billingDate,
