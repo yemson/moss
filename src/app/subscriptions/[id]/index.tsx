@@ -1,5 +1,6 @@
 import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight } from "@/lib/haptics";
+import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
 import { resolveId } from "@/lib/subscription-editor";
 import {
   formatAmount,
@@ -70,7 +71,7 @@ function DetailInfoRow({ icon, label, value }: DetailInfoRowProps) {
 
 export default function SubscriptionDetailRoute() {
   const router = useRouter();
-  const { currencyDisplayMode } = useAppSettings();
+  const { currencyDisplayMode, notificationsEnabled } = useAppSettings();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const subscriptionId = resolveId(params.id);
   const [subscription, setSubscription] = useState<
@@ -115,6 +116,7 @@ export default function SubscriptionDetailRoute() {
         onPress: async () => {
           try {
             await deleteSubscription(subscription.id);
+            await syncSubscriptionNotifications(notificationsEnabled);
             router.replace("/");
           } catch (error) {
             const message =
@@ -126,7 +128,7 @@ export default function SubscriptionDetailRoute() {
         },
       },
     ]);
-  }, [router, subscription]);
+  }, [notificationsEnabled, router, subscription]);
 
   const amountParts = subscription
     ? formatAmountParts(

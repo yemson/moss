@@ -45,6 +45,8 @@ export interface SubscriptionFormValues {
   currency: Currency;
   billingDate: string;
   trialEndDate: string;
+  notifyDayBefore: boolean;
+  notificationsEnabled: boolean;
   billingCycle: BillingCycle;
   memo: string;
   categoryId: string | null;
@@ -65,6 +67,7 @@ interface SubscriptionFormProps {
   onCurrencyChange: (value: Currency) => void;
   onBillingCycleChange: (value: BillingCycle) => void;
   onTrialEnabledChange: (nextEnabled: boolean) => void;
+  onNotifyDayBeforeChange: (nextEnabled: boolean) => void;
   onBillingDateSheetOpenChange: (nextOpen: boolean) => void;
   onBillingDateDraftChange: (date: Date) => void;
   onBillingDateApply: () => void;
@@ -85,6 +88,7 @@ export function SubscriptionForm({
   onCurrencyChange,
   onBillingCycleChange,
   onTrialEnabledChange,
+  onNotifyDayBeforeChange,
   onBillingDateSheetOpenChange,
   onBillingDateDraftChange,
   onBillingDateApply,
@@ -188,7 +192,7 @@ export function SubscriptionForm({
         ref={scrollViewRef}
         style={{ flex: 1, paddingTop: 15 }}
         className="flex-1 px-4"
-        keyboardShouldPersistTaps="always"
+        keyboardShouldPersistTaps="handled"
         keyboardDismissMode="none"
         contentContainerClassName="gap-4 pb-20"
       >
@@ -427,38 +431,6 @@ export function SubscriptionForm({
 
           <View className="flex-row items-end gap-3">
             <View className="flex-2">
-              <View className="gap-2 rounded-3xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
-                <View className="flex-row items-center justify-between gap-4">
-                  <View className="flex-1 gap-1">
-                    <Text className="font-semibold text-black dark:text-white">
-                      무료 체험
-                    </Text>
-                    <Text className="text-sm text-foreground/50">
-                      종료일이 첫 유료 결제일이 됩니다.
-                    </Text>
-                  </View>
-                  <Switch
-                    isSelected={values.isTrialEnabled}
-                    onPressIn={dismissKeyboardAndHaptic}
-                    onSelectedChange={(nextSelected) => {
-                      onTrialEnabledChange(nextSelected);
-                    }}
-                  >
-                    <Switch.Thumb
-                      animation={{
-                        backgroundColor: {
-                          value: ["#ffffff", "#ffffff"],
-                        },
-                      }}
-                    />
-                  </Switch>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View className="flex-row items-end gap-3">
-            <View className="flex-2">
               <BottomSheet
                 isOpen={isDateSheetOpen}
                 onOpenChange={(nextOpen) => {
@@ -614,6 +586,72 @@ export function SubscriptionForm({
                   </Select.Content>
                 </Select.Portal>
               </Select>
+            </View>
+          </View>
+
+          <View className="flex-row items-end gap-3">
+            <View className="flex-2">
+              <View className="gap-2 rounded-3xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
+                <View className="flex-row items-center justify-between gap-4">
+                  <View className="flex-1 gap-1">
+                    <Text className="font-semibold text-black dark:text-white">
+                      무료 체험
+                    </Text>
+                    <Text className="text-sm text-foreground/50">
+                      종료일이 첫 유료 결제일이 됩니다.
+                    </Text>
+                  </View>
+                  <Switch
+                    isSelected={values.isTrialEnabled}
+                    onPressIn={dismissKeyboardAndHaptic}
+                    onSelectedChange={(nextSelected) => {
+                      onTrialEnabledChange(nextSelected);
+                    }}
+                  >
+                    <Switch.Thumb
+                      animation={{
+                        backgroundColor: {
+                          value: ["#ffffff", "#ffffff"],
+                        },
+                      }}
+                    />
+                  </Switch>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View className="flex-row items-end gap-3">
+            <View className="flex-2">
+              <View className="gap-2 rounded-3xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
+                <View className="flex-row items-center justify-between gap-4">
+                  <View className="flex-1 gap-1">
+                    <Text className="font-semibold text-black dark:text-white">
+                      하루 전 알림
+                    </Text>
+                    <Text className="text-sm text-foreground/50">
+                      {values.notificationsEnabled
+                        ? "오전 10시에 내일 결제 예정인 구독을 알려드려요."
+                        : "앱 전체 알림이 꺼져 있어 현재는 발송되지 않습니다."}
+                    </Text>
+                  </View>
+                  <Switch
+                    isSelected={values.notifyDayBefore}
+                    onPressIn={dismissKeyboardAndHaptic}
+                    onSelectedChange={(nextSelected) => {
+                      onNotifyDayBeforeChange(nextSelected);
+                    }}
+                  >
+                    <Switch.Thumb
+                      animation={{
+                        backgroundColor: {
+                          value: ["#ffffff", "#ffffff"],
+                        },
+                      }}
+                    />
+                  </Switch>
+                </View>
+              </View>
             </View>
           </View>
 

@@ -1,5 +1,7 @@
-import { SubscriptionForm } from "@/components/subscriptions/subscription-form";
+import { SubscriptionCreateFlow } from "@/components/subscriptions/subscription-create-flow";
+import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
+import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
 import { getSubscriptionTemplate } from "@/lib/subscription-templates";
 import {
   formatDateToYmd,
@@ -16,13 +18,22 @@ import {
   type Currency,
 } from "@/lib/subscription-store";
 import { Stack, useRouter } from "expo-router";
-import { CheckIcon, XIcon } from "lucide-uniwind";
+import { ChevronLeftIcon, XIcon } from "lucide-uniwind";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Keyboard, Pressable, View } from "react-native";
 
+const CUSTOM_TEMPLATE_VALUE = "__custom";
+
 export default function NewSubscriptionRoute() {
   const router = useRouter();
+  const { notificationsEnabled } = useAppSettings();
   const [serviceName, setServiceName] = useState("");
+  const [currentStep, setCurrentStep] = useState(0);
+  const [hasAdvancedPastTemplateStep, setHasAdvancedPastTemplateStep] =
+    useState(false);
+  const [templateSelection, setTemplateSelection] = useState<string | null>(
+    null,
+  );
   const [templateKey, setTemplateKey] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("KRW");
@@ -30,6 +41,7 @@ export default function NewSubscriptionRoute() {
     formatDateToYmd(new Date()),
   );
   const [trialEndDate, setTrialEndDate] = useState("");
+  const [notifyDayBefore, setNotifyDayBefore] = useState(false);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [memo, setMemo] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -65,7 +77,8 @@ export default function NewSubscriptionRoute() {
 
   useEffect(() => {
     setCategoryId(
-      (currentCategoryId) => currentCategoryId ?? categoryOptions[0]?.value ?? null,
+      (currentCategoryId) =>
+        currentCategoryId ?? categoryOptions[0]?.value ?? null,
     );
   }, [categoryOptions]);
 
@@ -104,30 +117,15 @@ export default function NewSubscriptionRoute() {
       return;
     }
 
-    if (!serviceName.trim()) {
-      Alert.alert("안내", "서비스 이름을 입력해주세요.");
-      return;
-    }
-
     const parsedAmount = parseAmountInput(amount, currency);
-    if (parsedAmount == null) {
-      Alert.alert("안내", "금액을 입력해주세요.");
-      return;
-    }
-
     const effectiveBillingDate = isTrialEnabled ? trialEndDate : billingDate;
-    if (!effectiveBillingDate.trim()) {
-      Alert.alert(
-        "안내",
-        isTrialEnabled
-          ? "무료 체험 종료일을 입력해주세요."
-          : "결제일을 입력해주세요.",
-      );
-      return;
-    }
-
-    if (!categoryId) {
-      Alert.alert("안내", "카테고리를 선택해주세요.");
+    if (
+      !templateSelection ||
+      !serviceName.trim() ||
+      parsedAmount == null ||
+      !effectiveBillingDate.trim() ||
+      !categoryId
+    ) {
       return;
     }
 
@@ -143,9 +141,11 @@ export default function NewSubscriptionRoute() {
         billingCycle,
         billingDate: effectiveBillingDate,
         trialEndDate: isTrialEnabled ? trialEndDate : null,
+        notifyDayBefore,
         categoryId,
         memo: memo.trim() || null,
       });
+      await syncSubscriptionNotifications(notificationsEnabled);
 
       hapticSelection();
       router.back();
@@ -160,12 +160,18 @@ export default function NewSubscriptionRoute() {
     }
   };
 
-  const saveDisabled = isSaving || !categoryId;
+  const handleTemplateSelectionChange = (nextTemplateSelection: string) => {
+    setTemplateSelection(nextTemplateSelection);
 
-  const handleTemplateChange = (nextTemplateKey: string | null) => {
+    const nextTemplateKey =
+      nextTemplateSelection === CUSTOM_TEMPLATE_VALUE
+        ? null
+        : nextTemplateSelection;
     setTemplateKey(nextTemplateKey);
 
     if (!nextTemplateKey) {
+      setServiceName("");
+      setCategoryId(categoryOptions[0]?.value ?? null);
       return;
     }
 
@@ -184,7 +190,9 @@ export default function NewSubscriptionRoute() {
 
   const handleCurrencyChange = (nextCurrency: Currency) => {
     setCurrency(nextCurrency);
-    setAmount((currentAmount) => sanitizeAmountInput(currentAmount, nextCurrency));
+    setAmount((currentAmount) =>
+      sanitizeAmountInput(currentAmount, nextCurrency),
+    );
   };
 
   const handleTrialEnabledChange = (nextEnabled: boolean) => {
@@ -209,18 +217,76 @@ export default function NewSubscriptionRoute() {
     setTrialEndDate(nextDate);
   };
 
+  const handleStepChange = (nextStep: number) => {
+    if (nextStep > 0) {
+      setHasAdvancedPastTemplateStep(true);
+    }
+
+    setCurrentStep(nextStep);
+  };
+
+  const handleClosePress = () => {
+    if (isSaving) {
+      return;
+    }
+
+    if (!hasAdvancedPastTemplateStep) {
+      router.back();
+      return;
+    }
+
+    Alert.alert("작성 중인 내용을 취소할까요?", "입력한 내용이 저장되지 않습니다.", [
+      {
+        text: "계속 작성",
+        style: "cancel",
+      },
+      {
+        text: "취소하기",
+        style: "destructive",
+        onPress: () => {
+          Keyboard.dismiss();
+          router.back();
+        },
+      },
+    ]);
+  };
+
   return (
     <View className="flex-1">
-      <Stack.Screen options={{ title: "새로운 구독" }} />
+      <Stack.Screen
+        options={{
+          title: "새로운 구독",
+          gestureEnabled: !hasAdvancedPastTemplateStep,
+        }}
+      />
 
       <Stack.Toolbar placement="left">
+        {currentStep > 0 ? (
+          <Stack.Toolbar.View>
+            <View style={{ width: 36, height: 36 }}>
+              <Pressable
+                onPressIn={hapticImpactLight}
+                onPress={() => {
+                  setCurrentStep((current) => Math.max(0, current - 1));
+                }}
+                hitSlop={8}
+                className="flex-1 items-center justify-center"
+              >
+                <ChevronLeftIcon className="text-black dark:text-white" />
+              </Pressable>
+            </View>
+          </Stack.Toolbar.View>
+        ) : undefined}
+      </Stack.Toolbar>
+
+      <Stack.Toolbar placement="right">
         <Stack.Toolbar.View>
           <View style={{ width: 36, height: 36 }}>
             <Pressable
               onPressIn={hapticImpactLight}
-              onPress={() => router.back()}
+              onPress={handleClosePress}
               hitSlop={8}
-              className="flex-1 items-center justify-center"
+              className={`flex-1 items-center justify-center ${isSaving ? "opacity-50" : ""}`}
             >
               <XIcon className="text-black dark:text-white" />
             </Pressable>
@@ -228,33 +294,19 @@ export default function NewSubscriptionRoute() {
         </Stack.Toolbar.View>
       </Stack.Toolbar>
 
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.View>
-          <View style={{ width: 36, height: 36 }}>
-            <Pressable
-              disabled={saveDisabled}
-              onPressIn={hapticImpactLight}
-              onPress={() => {
-                void handleSavePress();
-              }}
-              hitSlop={8}
-              className={`flex-1 items-center justify-center ${saveDisabled ? "opacity-50" : ""}`}
-            >
-              <CheckIcon className="text-success" />
-            </Pressable>
-          </View>
-        </Stack.Toolbar.View>
-      </Stack.Toolbar>
-
-      <SubscriptionForm
-        mode="create"
+      <SubscriptionCreateFlow
+        currentStep={currentStep}
+        isSaving={isSaving}
         values={{
+          templateSelection,
           templateKey,
           serviceName,
           amount,
           currency,
           billingDate,
           trialEndDate,
+          notifyDayBefore,
+          notificationsEnabled,
           billingCycle,
           memo,
           categoryId,
@@ -265,12 +317,14 @@ export default function NewSubscriptionRoute() {
           isTrialEndDateSheetOpen,
         }}
         categoryOptions={categoryOptions}
-        onTemplateChange={handleTemplateChange}
+        onStepChange={handleStepChange}
+        onTemplateSelectionChange={handleTemplateSelectionChange}
         onServiceNameChange={setServiceName}
         onAmountChange={handleAmountChange}
         onCurrencyChange={handleCurrencyChange}
         onBillingCycleChange={setBillingCycle}
         onTrialEnabledChange={handleTrialEnabledChange}
+        onNotifyDayBeforeChange={setNotifyDayBefore}
         onBillingDateSheetOpenChange={handleBillingDateSheetOpenChange}
         onBillingDateDraftChange={setBillingDateDraft}
         onBillingDateApply={handleApplyBillingDate}
@@ -279,6 +333,9 @@ export default function NewSubscriptionRoute() {
         onTrialEndDateApply={handleApplyTrialEndDate}
         onCategoryChange={setCategoryId}
         onMemoChange={setMemo}
+        onSubmit={() => {
+          void handleSavePress();
+        }}
       />
     </View>
   );

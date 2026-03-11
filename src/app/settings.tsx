@@ -1,10 +1,30 @@
+import { useAppSettings } from "@/lib/app-settings";
 import { CurrencyDisplayTabs } from "@/components/settings/currency-display-tabs";
 import { ThemeModeTabs } from "@/components/settings/theme-mode-tabs";
+import { hapticSelection } from "@/lib/haptics";
+import {
+  getNotificationPermissionGrantedAsync,
+  openSystemNotificationSettings,
+  syncSubscriptionNotifications,
+} from "@/lib/subscription-notifications";
+import { useFocusEffect } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { Stack } from "expo-router";
-import { ListGroup, Separator } from "heroui-native";
-import { BanknoteIcon, SunIcon } from "lucide-uniwind";
-import type { ComponentType, ReactNode } from "react";
+import { Stack, useRouter } from "expo-router";
+import { Button, ListGroup, Separator, Switch } from "heroui-native";
+import {
+  BanknoteIcon,
+  BellIcon,
+  FlaskConicalIcon,
+  HandIcon,
+  SunIcon,
+} from "lucide-uniwind";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { ScrollView, Text, View } from "react-native";
 
 interface SettingItem {
@@ -21,29 +41,156 @@ interface SettingSection {
   items: SettingItem[];
 }
 
-const sections: SettingSection[] = [
-  {
-    id: "appearance",
-    title: "외관",
-    items: [
-      {
-        id: "theme",
-        title: "화면 모드",
-        icon: SunIcon,
-        suffix: <ThemeModeTabs />,
-      },
-      {
-        id: "currency-display",
-        title: "금액 표기",
-        icon: BanknoteIcon,
-        suffix: <CurrencyDisplayTabs />,
-      },
-    ],
-  },
-];
-
 export default function SettingsRoute() {
+  const router = useRouter();
   const headerHeight = useHeaderHeight();
+  const { notificationsEnabled, setNotificationsEnabled } = useAppSettings();
+  const [isNotificationPermissionGranted, setIsNotificationPermissionGranted] =
+    useState<boolean | null>(null);
+
+  const loadNotificationPermission = useCallback(async () => {
+    const nextGranted = await getNotificationPermissionGrantedAsync();
+    setIsNotificationPermissionGranted(nextGranted);
+
+    if (!nextGranted && notificationsEnabled) {
+      setNotificationsEnabled(false);
+      await syncSubscriptionNotifications(false);
+    }
+  }, [notificationsEnabled, setNotificationsEnabled]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadNotificationPermission();
+    }, [loadNotificationPermission]),
+  );
+
+  const handleNotificationsEnabledChange = useCallback(
+    async (nextEnabled: boolean) => {
+      setNotificationsEnabled(nextEnabled);
+      await syncSubscriptionNotifications(nextEnabled);
+    },
+    [setNotificationsEnabled],
+  );
+
+  const sections = useMemo<SettingSection[]>(
+    () => [
+      {
+        id: "notifications",
+        title: "알림",
+        items: [
+          {
+            id: "billing-reminders",
+            title: "알림",
+            description:
+              isNotificationPermissionGranted === false
+                ? "시스템 설정에서 알림을 허용해주세요."
+                : "",
+            icon: BellIcon,
+            suffix:
+              isNotificationPermissionGranted === false ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPressIn={hapticSelection}
+                  onPress={() => {
+                    void openSystemNotificationSettings();
+                  }}
+                >
+                  <Button.Label>설정 열기</Button.Label>
+                </Button>
+              ) : (
+                <Switch
+                  isSelected={notificationsEnabled}
+                  isDisabled={isNotificationPermissionGranted == null}
+                  onPressIn={hapticSelection}
+                  onSelectedChange={(nextSelected) => {
+                    void handleNotificationsEnabledChange(nextSelected);
+                  }}
+                >
+                  <Switch.Thumb
+                    animation={{
+                      backgroundColor: {
+                        value: ["#ffffff", "#ffffff"],
+                      },
+                    }}
+                  />
+                </Switch>
+              ),
+          },
+        ],
+      },
+      {
+        id: "appearance",
+        title: "외관",
+        items: [
+          {
+            id: "theme",
+            title: "화면 모드",
+            icon: SunIcon,
+            suffix: <ThemeModeTabs />,
+          },
+          {
+            id: "currency-display",
+            title: "금액 표기",
+            icon: BanknoteIcon,
+            suffix: <CurrencyDisplayTabs />,
+          },
+        ],
+      },
+      ...(__DEV__
+        ? [
+            {
+              id: "development",
+              title: "개발",
+              items: [
+                {
+                  id: "haptics-test",
+                  title: "햅틱 테스트",
+                  description: "햅틱 종류별 동작을 빠르게 확인합니다.",
+                  icon: HandIcon,
+                  suffix: (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onPressIn={hapticSelection}
+                      onPress={() => {
+                        router.push("/dev/haptics");
+                      }}
+                    >
+                      <Button.Label>열기</Button.Label>
+                    </Button>
+                  ),
+                },
+                {
+                  id: "notification-test",
+                  title: "알림 테스트",
+                  description: "단건/묶음 알림과 실제 예약 상태를 확인합니다.",
+                  icon: FlaskConicalIcon,
+                  suffix: (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onPressIn={hapticSelection}
+                      onPress={() => {
+                        router.push("/dev/notifications");
+                      }}
+                    >
+                      <Button.Label>열기</Button.Label>
+                    </Button>
+                  ),
+                },
+              ],
+            },
+          ]
+        : []),
+    ],
+    [
+      handleNotificationsEnabledChange,
+      isNotificationPermissionGranted,
+      notificationsEnabled,
+      router,
+    ],
+  );
 
   return (
     <>

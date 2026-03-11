@@ -1,5 +1,7 @@
 import { SubscriptionForm } from "@/components/subscriptions/subscription-form";
+import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
+import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
 import {
   formatDateToYmd,
   parseAmountInput,
@@ -25,6 +27,7 @@ import { Alert, Keyboard, Pressable, Text, View } from "react-native";
 
 export default function EditSubscriptionRoute() {
   const router = useRouter();
+  const { notificationsEnabled } = useAppSettings();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const subscriptionId = resolveId(params.id);
   const [serviceName, setServiceName] = useState("");
@@ -32,6 +35,7 @@ export default function EditSubscriptionRoute() {
   const [currency, setCurrency] = useState<Currency>("KRW");
   const [billingDate, setBillingDate] = useState("");
   const [trialEndDate, setTrialEndDate] = useState("");
+  const [notifyDayBefore, setNotifyDayBefore] = useState(false);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [memo, setMemo] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -107,6 +111,7 @@ export default function EditSubscriptionRoute() {
     setCurrency(loadedSubscription.currency);
     setBillingDate(loadedSubscription.billingDate);
     setTrialEndDate(activeTrialEndDate ?? "");
+    setNotifyDayBefore(loadedSubscription.notifyDayBefore);
     setBillingCycle(loadedSubscription.billingCycle);
     setMemo(loadedSubscription.memo ?? "");
     setIsTrialEnabled(activeTrialEndDate != null);
@@ -195,9 +200,11 @@ export default function EditSubscriptionRoute() {
         billingCycle,
         billingDate: effectiveBillingDate,
         trialEndDate: isTrialEnabled ? trialEndDate : null,
+        notifyDayBefore,
         categoryId,
         memo: memo.trim() || null,
       });
+      await syncSubscriptionNotifications(notificationsEnabled);
 
       hapticSelection();
       router.back();
@@ -304,6 +311,8 @@ export default function EditSubscriptionRoute() {
             currency,
             billingDate,
             trialEndDate,
+            notifyDayBefore,
+            notificationsEnabled,
             billingCycle,
             memo,
             categoryId,
@@ -319,6 +328,7 @@ export default function EditSubscriptionRoute() {
           onCurrencyChange={handleCurrencyChange}
           onBillingCycleChange={setBillingCycle}
           onTrialEnabledChange={handleTrialEnabledChange}
+          onNotifyDayBeforeChange={setNotifyDayBefore}
           onBillingDateSheetOpenChange={handleBillingDateSheetOpenChange}
           onBillingDateDraftChange={setBillingDateDraft}
           onBillingDateApply={handleApplyBillingDate}

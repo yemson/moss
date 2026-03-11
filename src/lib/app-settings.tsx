@@ -23,13 +23,19 @@ const APP_SETTINGS_STORAGE_KEY = "subak.settings";
 export interface AppSettings {
   currencyDisplayMode: CurrencyDisplayMode;
   themeMode: ThemeMode;
+  notificationsEnabled: boolean;
+  notificationsPermissionPrompted: boolean;
 }
 
 interface AppSettingsContextValue {
   currencyDisplayMode: CurrencyDisplayMode;
   themeMode: ThemeMode;
+  notificationsEnabled: boolean;
+  notificationsPermissionPrompted: boolean;
   setCurrencyDisplayMode: (nextMode: CurrencyDisplayMode) => void;
   setThemeMode: (nextMode: ThemeMode) => void;
+  setNotificationsEnabled: (nextEnabled: boolean) => void;
+  setNotificationsPermissionPrompted: (nextPrompted: boolean) => void;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
@@ -37,6 +43,8 @@ const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   currencyDisplayMode: DEFAULT_CURRENCY_DISPLAY_MODE,
   themeMode: DEFAULT_THEME_MODE,
+  notificationsEnabled: false,
+  notificationsPermissionPrompted: false,
 };
 
 function parseAppSettings(rawSettings: string | null): AppSettings {
@@ -48,6 +56,8 @@ function parseAppSettings(rawSettings: string | null): AppSettings {
     const parsedSettings = JSON.parse(rawSettings) as {
       currencyDisplayMode?: unknown;
       themeMode?: unknown;
+      notificationsEnabled?: unknown;
+      notificationsPermissionPrompted?: unknown;
     };
 
     return {
@@ -61,11 +71,26 @@ function parseAppSettings(rawSettings: string | null): AppSettings {
         isThemeMode(parsedSettings.themeMode)
           ? parsedSettings.themeMode
           : DEFAULT_THEME_MODE,
+      notificationsEnabled:
+        typeof parsedSettings.notificationsEnabled === "boolean"
+          ? parsedSettings.notificationsEnabled
+          : DEFAULT_APP_SETTINGS.notificationsEnabled,
+      notificationsPermissionPrompted:
+        typeof parsedSettings.notificationsPermissionPrompted === "boolean"
+          ? parsedSettings.notificationsPermissionPrompted
+          : DEFAULT_APP_SETTINGS.notificationsPermissionPrompted,
     };
   } catch (error) {
     console.error("Failed to parse app settings:", error);
     return DEFAULT_APP_SETTINGS;
   }
+}
+
+export async function persistAppSettings(nextSettings: AppSettings) {
+  await AsyncStorage.setItem(
+    APP_SETTINGS_STORAGE_KEY,
+    JSON.stringify(nextSettings),
+  );
 }
 
 export async function loadAppSettings() {
@@ -88,10 +113,7 @@ export function AppSettingsProvider({
   const [settings, setSettings] = useState<AppSettings>(initialSettings);
 
   const persistSettings = useCallback((nextSettings: AppSettings) => {
-    void AsyncStorage.setItem(
-      APP_SETTINGS_STORAGE_KEY,
-      JSON.stringify(nextSettings),
-    ).catch((error) => {
+    void persistAppSettings(nextSettings).catch((error) => {
       console.error("Failed to persist app settings:", error);
     });
   }, []);
@@ -128,13 +150,47 @@ export function AppSettingsProvider({
     [persistSettings],
   );
 
+  const setNotificationsEnabled = useCallback(
+    (nextEnabled: boolean) => {
+      setSettings((currentSettings) => {
+        const nextSettings = {
+          ...currentSettings,
+          notificationsEnabled: nextEnabled,
+        };
+
+        persistSettings(nextSettings);
+        return nextSettings;
+      });
+    },
+    [persistSettings],
+  );
+
+  const setNotificationsPermissionPrompted = useCallback(
+    (nextPrompted: boolean) => {
+      setSettings((currentSettings) => {
+        const nextSettings = {
+          ...currentSettings,
+          notificationsPermissionPrompted: nextPrompted,
+        };
+
+        persistSettings(nextSettings);
+        return nextSettings;
+      });
+    },
+    [persistSettings],
+  );
+
   return (
     <AppSettingsContext.Provider
       value={{
         currencyDisplayMode: settings.currencyDisplayMode,
         themeMode: settings.themeMode,
+        notificationsEnabled: settings.notificationsEnabled,
+        notificationsPermissionPrompted: settings.notificationsPermissionPrompted,
         setCurrencyDisplayMode,
         setThemeMode,
+        setNotificationsEnabled,
+        setNotificationsPermissionPrompted,
       }}
     >
       {children}

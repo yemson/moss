@@ -20,6 +20,7 @@ export interface Subscription {
   billingCycle: BillingCycle;
   billingDate: string;
   trialEndDate: string | null;
+  notifyDayBefore: boolean;
   categoryId: string;
   isActive: boolean;
   memo: string | null;
@@ -49,6 +50,7 @@ export interface CreateSubscriptionInput {
   billingCycle: BillingCycle;
   billingDate: string;
   trialEndDate?: string | null;
+  notifyDayBefore?: boolean;
   categoryId: string;
   isActive?: boolean;
   memo?: string | null;
@@ -62,6 +64,7 @@ export interface UpdateSubscriptionInput {
   billingCycle?: BillingCycle;
   billingDate?: string;
   trialEndDate?: string | null;
+  notifyDayBefore?: boolean;
   categoryId?: string;
   isActive?: boolean;
   memo?: string | null;
@@ -102,6 +105,13 @@ let initializePromise: Promise<void> | null = null;
 
 function nowIsoString(): string {
   return new Date().toISOString();
+}
+
+function toLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function generateId(prefix: string): string {
@@ -194,6 +204,7 @@ function mapSubscriptionRow(row: {
   billingCycle: string;
   billingDate: string;
   trialEndDate: string | null;
+  notifyDayBefore: number;
   categoryId: string;
   isActive: number;
   memo: string | null;
@@ -219,6 +230,7 @@ function mapSubscriptionRow(row: {
     billingCycle: row.billingCycle,
     billingDate: row.billingDate,
     trialEndDate: row.trialEndDate,
+    notifyDayBefore: row.notifyDayBefore === 1,
     categoryId: row.categoryId,
     isActive: row.isActive === 1,
     memo: row.memo,
@@ -263,6 +275,7 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
       billingCycle TEXT NOT NULL CHECK (billingCycle IN ('monthly', 'yearly')),
       billingDate TEXT NOT NULL,
       trialEndDate TEXT,
+      notifyDayBefore INTEGER NOT NULL DEFAULT 0,
       categoryId TEXT NOT NULL,
       isActive INTEGER NOT NULL DEFAULT 1,
       memo TEXT,
@@ -325,6 +338,23 @@ async function migrateTrialEndDateColumn(database: SQLiteDatabase): Promise<void
   }
 }
 
+async function migrateNotifyDayBeforeColumn(database: SQLiteDatabase): Promise<void> {
+  try {
+    await database.execAsync(`
+      ALTER TABLE subscriptions
+      ADD COLUMN notifyDayBefore INTEGER NOT NULL DEFAULT 0
+    `);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+
+    if (message.includes("duplicate column name")) {
+      return;
+    }
+
+    throw error;
+  }
+}
+
 async function seedPresetCategories(database: SQLiteDatabase): Promise<void> {
   const now = nowIsoString();
 
@@ -346,6 +376,7 @@ async function ensureInitialized(): Promise<void> {
       await createSchema(database);
       await migrateTemplateKeyColumn(database);
       await migrateTrialEndDateColumn(database);
+      await migrateNotifyDayBeforeColumn(database);
       await seedPresetCategories(database);
     })().catch((error) => {
       initializePromise = null;
@@ -361,6 +392,11 @@ function toIsoDateString(date: Date): string {
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function parseYmdToUtcDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
 function toLocalDateString(date: Date): string {
@@ -404,6 +440,32 @@ export function isTrialActive(
   return trialEndDate >= toLocalDateString(baseDate);
 }
 
+export function listUpcomingBillingDates(
+  billingDate: string,
+  billingCycle: BillingCycle,
+  trialEndDate: string | null,
+  rangeEndDate: Date,
+  rangeStartDate: Date = new Date(),
+): string[] {
+  const endDate = toLocalDateString(rangeEndDate);
+  let nextBillingDate = calculateNextBillingDate(
+    billingDate,
+    billingCycle,
+    trialEndDate,
+    rangeStartDate,
+  );
+  const billingDates: string[] = [];
+
+  while (nextBillingDate <= endDate) {
+    billingDates.push(nextBillingDate);
+    nextBillingDate = toIsoDateString(
+      addCycle(parseYmdToUtcDate(nextBillingDate), billingCycle),
+    );
+  }
+
+  return billingDates;
+}
+
 export function calculateNextBillingDate(
   billingDate: string,
   billingCycle: BillingCycle,
@@ -418,9 +480,9 @@ export function calculateNextBillingDate(
 
   const base = new Date(
     Date.UTC(
-      baseDate.getUTCFullYear(),
-      baseDate.getUTCMonth(),
-      baseDate.getUTCDate(),
+      baseDate.getFullYear(),
+      baseDate.getMonth(),
+      baseDate.getDate(),
     ),
   );
 
@@ -593,11 +655,23 @@ export async function getStoredUsdKrwRate(): Promise<UsdKrwExchangeRate | null> 
   return storedRate ? mapUsdKrwExchangeRateRow(storedRate) : null;
 }
 
+function hasFetchedOnSameLocalDate(
+  fetchedAt: string,
+  now: Date = new Date(),
+): boolean {
+  const fetchedAtDate = new Date(fetchedAt);
+
+  if (Number.isNaN(fetchedAtDate.getTime())) {
+    return false;
+  }
+
+  return toLocalDateKey(fetchedAtDate) === toLocalDateKey(now);
+}
+
 export async function getUsdKrwRate(): Promise<UsdKrwExchangeRate | null> {
   const storedRate = await getStoredUsdKrwRate();
-  const currentUnixTime = Math.floor(Date.now() / 1000);
 
-  if (storedRate && currentUnixTime < storedRate.timeNextUpdateUnix) {
+  if (storedRate && hasFetchedOnSameLocalDate(storedRate.fetchedAt)) {
     return storedRate;
   }
 
@@ -818,12 +892,13 @@ export async function createSubscription(
         billingCycle,
         billingDate,
         trialEndDate,
+        notifyDayBefore,
         categoryId,
         isActive,
         memo,
         createdAt,
         updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
@@ -834,6 +909,7 @@ export async function createSubscription(
       input.billingCycle,
       input.billingDate,
       input.trialEndDate ?? null,
+      input.notifyDayBefore === true ? 1 : 0,
       input.categoryId,
       input.isActive === false ? 0 : 1,
       normalizeMemo(input.memo),
@@ -880,6 +956,7 @@ export async function listSubscriptions(
     billingCycle: string;
     billingDate: string;
     trialEndDate: string | null;
+    notifyDayBefore: number;
     categoryId: string;
     isActive: number;
     memo: string | null;
@@ -898,6 +975,7 @@ export async function listSubscriptions(
         s.billingCycle,
         s.billingDate,
         s.trialEndDate,
+        s.notifyDayBefore,
         s.categoryId,
         s.isActive,
         s.memo,
@@ -931,6 +1009,7 @@ export async function getSubscriptionById(
     billingCycle: string;
     billingDate: string;
     trialEndDate: string | null;
+    notifyDayBefore: number;
     categoryId: string;
     isActive: number;
     memo: string | null;
@@ -949,6 +1028,7 @@ export async function getSubscriptionById(
         s.billingCycle,
         s.billingDate,
         s.trialEndDate,
+        s.notifyDayBefore,
         s.categoryId,
         s.isActive,
         s.memo,
@@ -1036,6 +1116,11 @@ export async function updateSubscription(
 
     sets.push("trialEndDate = ?");
     params.push(input.trialEndDate);
+  }
+
+  if (input.notifyDayBefore !== undefined) {
+    sets.push("notifyDayBefore = ?");
+    params.push(input.notifyDayBefore ? 1 : 0);
   }
 
   if (input.categoryId !== undefined) {

@@ -10,7 +10,7 @@ import { ScrollView, Text, View } from "react-native";
 export default function DevHapticsRoute() {
   return (
     <>
-      <Stack.Screen options={{ title: "Haptics Test" }} />
+      <Stack.Screen options={{ title: "햅틱 테스트" }} />
 
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"

@@ -1,8 +1,11 @@
+import { useAppSettings } from "@/lib/app-settings";
+import { consumeInitialHomeData } from "@/lib/home-bootstrap";
 import { SubscriptionCard } from "@/components/subscriptions/subscription-card";
 import { SubscriptionCategoryFilter } from "@/components/subscriptions/subscription-category-filter";
 import { SubscriptionSortSelect } from "@/components/subscriptions/subscription-sort-select";
 import { SubscriptionSummaryCard } from "@/components/subscriptions/subscription-summary-card";
 import { hapticImpactLight } from "@/lib/haptics";
+import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
 import {
   deleteSubscription,
   getUsdKrwRate,
@@ -48,10 +51,43 @@ function compareByBillingDate(
 function compareByAmountDesc(
   a: SubscriptionWithCategory,
   b: SubscriptionWithCategory,
+  exchangeRate: UsdKrwExchangeRate | null,
 ) {
-  const amountDiff = b.amount - a.amount;
-  if (amountDiff !== 0) {
-    return amountDiff;
+  const getComparableAmount = (subscription: SubscriptionWithCategory) => {
+    if (subscription.currency === "KRW") {
+      return subscription.amount;
+    }
+
+    if (!exchangeRate) {
+      return null;
+    }
+
+    return Math.round(subscription.amount * exchangeRate.usdToKrwRate);
+  };
+
+  const comparableAmountA = getComparableAmount(a);
+  const comparableAmountB = getComparableAmount(b);
+
+  if (comparableAmountA == null && comparableAmountB != null) {
+    return 1;
+  }
+
+  if (comparableAmountA != null && comparableAmountB == null) {
+    return -1;
+  }
+
+  if (comparableAmountA != null && comparableAmountB != null) {
+    const amountDiff = comparableAmountB - comparableAmountA;
+    if (amountDiff !== 0) {
+      return amountDiff;
+    }
+  }
+
+  if (comparableAmountA == null && comparableAmountB == null) {
+    const currencyDiff = a.currency.localeCompare(b.currency);
+    if (currencyDiff !== 0) {
+      return currencyDiff;
+    }
   }
 
   const billingDateDiff = a.nextBillingDate.localeCompare(b.nextBillingDate);
@@ -65,11 +101,14 @@ function compareByAmountDesc(
 function sortSubscriptions(
   subscriptions: SubscriptionWithCategory[],
   sortKey: SortKey,
+  exchangeRate: UsdKrwExchangeRate | null,
 ) {
   const nextSubscriptions = [...subscriptions];
 
   nextSubscriptions.sort(
-    sortKey === "amount-desc" ? compareByAmountDesc : compareByBillingDate,
+    sortKey === "amount-desc"
+      ? (a, b) => compareByAmountDesc(a, b, exchangeRate)
+      : compareByBillingDate,
   );
 
   return nextSubscriptions;
@@ -77,11 +116,13 @@ function sortSubscriptions(
 
 export default function HomeRoute() {
   const router = useRouter();
+  const { notificationsEnabled } = useAppSettings();
+  const [initialHomeData] = useState(() => consumeInitialHomeData());
   const [subscriptions, setSubscriptions] = useState<
     SubscriptionWithCategory[] | null
-  >(null);
+  >(() => initialHomeData?.subscriptions ?? null);
   const [exchangeRate, setExchangeRate] = useState<UsdKrwExchangeRate | null>(
-    null,
+    () => initialHomeData?.exchangeRate ?? null,
   );
   const [selectedCategoryKey, setSelectedCategoryKey] =
     useState<string>(ALL_CATEGORY_KEY);
@@ -93,15 +134,19 @@ export default function HomeRoute() {
 
   const loadSubscriptions = useCallback(async () => {
     try {
-      const [nextSubscriptions, nextExchangeRate] = await Promise.all([
-        listSubscriptions({ isActive: true }),
-        getUsdKrwRate(),
-      ]);
+      const nextSubscriptions = await listSubscriptions({ isActive: true });
       setSubscriptions(nextSubscriptions);
-      setExchangeRate(nextExchangeRate);
     } catch (error) {
       console.error("Failed to load subscriptions:", error);
       setSubscriptions((currentSubscriptions) => currentSubscriptions ?? []);
+    }
+
+    try {
+      const nextExchangeRate = await getUsdKrwRate();
+      setExchangeRate(nextExchangeRate);
+    } catch (error) {
+      console.error("Failed to load exchange rate:", error);
+      setExchangeRate((currentExchangeRate) => currentExchangeRate ?? null);
     }
   }, []);
 
@@ -156,6 +201,7 @@ export default function HomeRoute() {
     async (subscriptionId: string) => {
       try {
         await deleteSubscription(subscriptionId);
+        await syncSubscriptionNotifications(notificationsEnabled);
         await loadSubscriptions();
       } catch (error) {
         const message =
@@ -165,7 +211,7 @@ export default function HomeRoute() {
         Alert.alert("오류", message);
       }
     },
-    [loadSubscriptions],
+    [loadSubscriptions, notificationsEnabled],
   );
 
   const handleDeletePress = useCallback(
@@ -208,8 +254,8 @@ export default function HomeRoute() {
     );
   }, [selectedCategoryKey, subscriptions]);
   const visibleSubscriptions = useMemo(
-    () => sortSubscriptions(filteredSubscriptions, sortOption.value),
-    [filteredSubscriptions, sortOption.value],
+    () => sortSubscriptions(filteredSubscriptions, sortOption.value, exchangeRate),
+    [exchangeRate, filteredSubscriptions, sortOption.value],
   );
 
   useEffect(() => {

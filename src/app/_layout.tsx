@@ -2,23 +2,42 @@ import {
   AppSettingsProvider,
   DEFAULT_APP_SETTINGS,
   loadAppSettings,
+  persistAppSettings,
   type AppSettings,
 } from "@/lib/app-settings";
+import { prepareInitialHomeData } from "@/lib/home-bootstrap";
+import {
+  initializeNotificationsOnAppStart,
+  isBillingReminderNotification,
+  syncSubscriptionNotifications,
+} from "@/lib/subscription-notifications";
+import {
+  getUsdKrwRate,
+  initializeSubscriptionStore,
+} from "@/lib/subscription-store";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
 import * as SplashScreen from "expo-splash-screen";
-import { Stack } from "expo-router";
+import * as Notifications from "expo-notifications";
+import { Stack, useRouter } from "expo-router";
 import type { HeroUINativeConfig } from "heroui-native";
 import { HeroUINativeProvider } from "heroui-native";
 import { useEffect, useMemo, useState } from "react";
+import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind, useUniwind } from "uniwind";
 import "../global.css";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.setOptions({
+  fade: true,
+  duration: 500,
+});
+
+const MINIMUM_SPLASH_SCREEN_DURATION_MS = 1500;
 
 const config: HeroUINativeConfig = {
   textProps: {
@@ -28,6 +47,7 @@ const config: HeroUINativeConfig = {
 };
 
 export default function TabLayout() {
+  const router = useRouter();
   const [initialSettings, setInitialSettings] =
     useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [isSettingsReady, setIsSettingsReady] = useState(false);
@@ -60,8 +80,34 @@ export default function TabLayout() {
     let isMounted = true;
 
     void (async () => {
-      const nextSettings = await loadAppSettings();
+      const startedAt = Date.now();
+      await initializeSubscriptionStore();
+      try {
+        await prepareInitialHomeData();
+      } catch (error) {
+        console.error("Failed to prepare initial home data:", error);
+      }
+
+      const loadedSettings = await loadAppSettings();
+      const nextSettings =
+        await initializeNotificationsOnAppStart(loadedSettings);
+      await persistAppSettings(nextSettings);
+      await syncSubscriptionNotifications(nextSettings.notificationsEnabled);
+      void getUsdKrwRate().catch((error) => {
+        console.error("Failed to warm USD/KRW exchange rate:", error);
+      });
       Uniwind.setTheme(nextSettings.themeMode);
+      const elapsedTime = Date.now() - startedAt;
+      const remainingTime = Math.max(
+        0,
+        MINIMUM_SPLASH_SCREEN_DURATION_MS - elapsedTime,
+      );
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, remainingTime);
+        });
+      }
 
       if (!isMounted) {
         return;
@@ -75,6 +121,48 @@ export default function TabLayout() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let currentAppState = AppState.currentState;
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      const isReturningToForeground =
+        /inactive|background/.test(currentAppState) && nextAppState === "active";
+      currentAppState = nextAppState;
+
+      if (!isReturningToForeground) {
+        return;
+      }
+
+      void getUsdKrwRate().catch((error) => {
+        console.error("Failed to refresh USD/KRW exchange rate:", error);
+      });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const notificationData = response.notification.request.content.data as
+          | Record<string, unknown>
+          | undefined;
+
+        if (!isBillingReminderNotification(notificationData)) {
+          return;
+        }
+
+        router.replace("/");
+      },
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
 
   useEffect(() => {
     if (!isSettingsReady) {
