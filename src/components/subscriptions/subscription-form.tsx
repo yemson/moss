@@ -20,6 +20,7 @@ import {
   Input,
   Select,
   Separator,
+  Switch,
   TextArea,
   TextField,
 } from "heroui-native";
@@ -43,11 +44,15 @@ export interface SubscriptionFormValues {
   amount: string;
   currency: Currency;
   billingDate: string;
+  trialEndDate: string;
   billingCycle: BillingCycle;
   memo: string;
   categoryId: string | null;
+  isTrialEnabled: boolean;
   billingDateDraft: Date;
   isBillingDateSheetOpen: boolean;
+  trialEndDateDraft: Date;
+  isTrialEndDateSheetOpen: boolean;
 }
 
 interface SubscriptionFormProps {
@@ -59,9 +64,13 @@ interface SubscriptionFormProps {
   onAmountChange: (value: string) => void;
   onCurrencyChange: (value: Currency) => void;
   onBillingCycleChange: (value: BillingCycle) => void;
+  onTrialEnabledChange: (nextEnabled: boolean) => void;
   onBillingDateSheetOpenChange: (nextOpen: boolean) => void;
   onBillingDateDraftChange: (date: Date) => void;
   onBillingDateApply: () => void;
+  onTrialEndDateSheetOpenChange: (nextOpen: boolean) => void;
+  onTrialEndDateDraftChange: (date: Date) => void;
+  onTrialEndDateApply: () => void;
   onCategoryChange: (categoryId: string) => void;
   onMemoChange: (value: string) => void;
 }
@@ -75,9 +84,13 @@ export function SubscriptionForm({
   onAmountChange,
   onCurrencyChange,
   onBillingCycleChange,
+  onTrialEnabledChange,
   onBillingDateSheetOpenChange,
   onBillingDateDraftChange,
   onBillingDateApply,
+  onTrialEndDateSheetOpenChange,
+  onTrialEndDateDraftChange,
+  onTrialEndDateApply,
   onCategoryChange,
   onMemoChange,
 }: SubscriptionFormProps) {
@@ -98,6 +111,22 @@ export function SubscriptionForm({
   const selectedCategory = categoryOptions.find(
     (option) => option.value === values.categoryId,
   );
+  const dateFieldLabel = values.isTrialEnabled ? "무료 체험 종료일" : "결제일";
+  const dateFieldValue = values.isTrialEnabled
+    ? values.trialEndDate
+    : values.billingDate;
+  const dateSheetTitle = values.isTrialEnabled
+    ? "무료 체험 종료일 선택"
+    : "결제일 선택";
+  const dateSheetDescription = values.isTrialEnabled
+    ? "종료일이 첫 유료 결제일이 됩니다."
+    : "구독을 시작한 날짜를 선택하세요.";
+  const isDateSheetOpen = values.isTrialEnabled
+    ? values.isTrialEndDateSheetOpen
+    : values.isBillingDateSheetOpen;
+  const dateDraft = values.isTrialEnabled
+    ? values.trialEndDateDraft
+    : values.billingDateDraft;
   const selectedTemplate =
     values.templateKey != null
       ? {
@@ -230,7 +259,10 @@ export function SubscriptionForm({
                       <Separator className="my-1 opacity-40" />
                       {SUBSCRIPTION_TEMPLATES.map((template, index) => (
                         <Fragment key={template.key}>
-                          <Select.Item value={template.key} label={template.name}>
+                          <Select.Item
+                            value={template.key}
+                            label={template.name}
+                          >
                             <View className="flex-row items-center gap-3 flex-1">
                               <SubscriptionServiceBadge
                                 name={template.name}
@@ -337,7 +369,9 @@ export function SubscriptionForm({
                     scrollToFocusedField(event.nativeEvent.target);
                   }}
                   placeholder="예: 17000"
-                  keyboardType="number-pad"
+                  keyboardType={
+                    values.currency === "USD" ? "decimal-pad" : "number-pad"
+                  }
                 />
               </TextField>
             </View>
@@ -393,20 +427,59 @@ export function SubscriptionForm({
 
           <View className="flex-row items-end gap-3">
             <View className="flex-2">
+              <View className="gap-2 rounded-3xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
+                <View className="flex-row items-center justify-between gap-4">
+                  <View className="flex-1 gap-1">
+                    <Text className="font-semibold text-black dark:text-white">
+                      무료 체험
+                    </Text>
+                    <Text className="text-sm text-foreground/50">
+                      종료일이 첫 유료 결제일이 됩니다.
+                    </Text>
+                  </View>
+                  <Switch
+                    isSelected={values.isTrialEnabled}
+                    onPressIn={dismissKeyboardAndHaptic}
+                    onSelectedChange={(nextSelected) => {
+                      onTrialEnabledChange(nextSelected);
+                    }}
+                  >
+                    <Switch.Thumb
+                      animation={{
+                        backgroundColor: {
+                          value: ["#ffffff", "#ffffff"],
+                        },
+                      }}
+                    />
+                  </Switch>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View className="flex-row items-end gap-3">
+            <View className="flex-2">
               <BottomSheet
-                isOpen={values.isBillingDateSheetOpen}
-                onOpenChange={onBillingDateSheetOpenChange}
+                isOpen={isDateSheetOpen}
+                onOpenChange={(nextOpen) => {
+                  if (values.isTrialEnabled) {
+                    onTrialEndDateSheetOpenChange(nextOpen);
+                    return;
+                  }
+
+                  onBillingDateSheetOpenChange(nextOpen);
+                }}
               >
                 <TextField isRequired>
                   <Text className="ml-1 font-semibold dark:text-white">
-                    결제일
+                    {dateFieldLabel}
                   </Text>
                   <BottomSheet.Trigger asChild>
                     <Pressable onPressIn={dismissKeyboardAndHaptic}>
                       <View pointerEvents="none">
                         <Input
                           className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
-                          value={values.billingDate}
+                          value={dateFieldValue}
                           placeholder="YYYY-MM-DD"
                           editable={false}
                           showSoftInputOnFocus={false}
@@ -423,9 +496,9 @@ export function SubscriptionForm({
                     contentContainerClassName="gap-4"
                   >
                     <View className="gap-1">
-                      <BottomSheet.Title>결제일 선택</BottomSheet.Title>
+                      <BottomSheet.Title>{dateSheetTitle}</BottomSheet.Title>
                       <BottomSheet.Description>
-                        구독을 시작한 날짜를 선택하세요.
+                        {dateSheetDescription}
                       </BottomSheet.Description>
                     </View>
 
@@ -434,12 +507,17 @@ export function SubscriptionForm({
                       style={{ minHeight: billingDatePickerHeight }}
                     >
                       <DateTimePicker
-                        value={values.billingDateDraft}
+                        value={dateDraft}
                         mode="date"
                         display="spinner"
                         locale="ko-KR"
                         onChange={(_event, selectedDate) => {
                           if (selectedDate) {
+                            if (values.isTrialEnabled) {
+                              onTrialEndDateDraftChange(selectedDate);
+                              return;
+                            }
+
                             onBillingDateDraftChange(selectedDate);
                           }
                         }}
@@ -455,7 +533,14 @@ export function SubscriptionForm({
                         variant="secondary"
                         className="flex-1"
                         size="lg"
-                        onPress={() => onBillingDateSheetOpenChange(false)}
+                        onPress={() => {
+                          if (values.isTrialEnabled) {
+                            onTrialEndDateSheetOpenChange(false);
+                            return;
+                          }
+
+                          onBillingDateSheetOpenChange(false);
+                        }}
                       >
                         <Button.Label>취소</Button.Label>
                       </Button>
@@ -463,7 +548,14 @@ export function SubscriptionForm({
                         size="lg"
                         className="flex-1"
                         onPressIn={hapticSelection}
-                        onPress={onBillingDateApply}
+                        onPress={() => {
+                          if (values.isTrialEnabled) {
+                            onTrialEndDateApply();
+                            return;
+                          }
+
+                          onBillingDateApply();
+                        }}
                       >
                         <Button.Label className="text-white">완료</Button.Label>
                       </Button>

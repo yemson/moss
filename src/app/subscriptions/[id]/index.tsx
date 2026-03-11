@@ -1,12 +1,19 @@
 import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight } from "@/lib/haptics";
 import { resolveId } from "@/lib/subscription-editor";
-import { formatAmountParts, formatYmd } from "@/lib/subscription-format";
+import {
+  formatAmount,
+  formatAmountParts,
+  formatYmd,
+} from "@/lib/subscription-format";
 import {
   deleteSubscription,
   getSubscriptionById,
+  getUsdKrwRate,
+  isTrialActive,
   type BillingCycle,
   type SubscriptionWithCategory,
+  type UsdKrwExchangeRate,
 } from "@/lib/subscription-store";
 import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { useFocusEffect } from "@react-navigation/native";
@@ -69,6 +76,9 @@ export default function SubscriptionDetailRoute() {
   const [subscription, setSubscription] = useState<
     SubscriptionWithCategory | null | undefined
   >(undefined);
+  const [exchangeRate, setExchangeRate] = useState<UsdKrwExchangeRate | null>(
+    null,
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -78,7 +88,12 @@ export default function SubscriptionDetailRoute() {
 
       void (async () => {
         try {
-          setSubscription(await getSubscriptionById(subscriptionId));
+          const [nextSubscription, nextExchangeRate] = await Promise.all([
+            getSubscriptionById(subscriptionId),
+            getUsdKrwRate(),
+          ]);
+          setSubscription(nextSubscription);
+          setExchangeRate(nextExchangeRate);
         } catch (error) {
           console.error("Failed to load subscription detail:", error);
           setSubscription(null);
@@ -120,6 +135,15 @@ export default function SubscriptionDetailRoute() {
         currencyDisplayMode,
       )
     : null;
+  const convertedAmountLabel =
+    subscription?.currency === "USD" && exchangeRate
+      ? formatAmount(
+          Math.round(subscription.amount * exchangeRate.usdToKrwRate),
+          "KRW",
+          currencyDisplayMode,
+        )
+      : null;
+  const isInTrial = subscription ? isTrialActive(subscription.trialEndDate) : false;
 
   return (
     <>
@@ -199,6 +223,13 @@ export default function SubscriptionDetailRoute() {
                   <Card.Description className="text-base text-foreground/45">
                     {subscription.categoryName}
                   </Card.Description>
+                  {isInTrial && (
+                    <View className="mt-2 rounded-full bg-surface-secondary px-3 py-1">
+                      <Text className="text-[12px] font-semibold text-foreground/65">
+                        무료 체험 중
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 <View className="items-center gap-1 mb-4">
@@ -223,6 +254,14 @@ export default function SubscriptionDetailRoute() {
                       </Text>
                     )}
                   </View>
+                  {convertedAmountLabel && (
+                    <Text
+                      className="text-sm font-medium text-foreground/50"
+                      style={{ fontVariant: ["tabular-nums"] }}
+                    >
+                      {convertedAmountLabel}
+                    </Text>
+                  )}
 
                   <Text className="text-base text-foreground/45">
                     {getBillingSummaryLabel(subscription.billingCycle)}
@@ -235,7 +274,7 @@ export default function SubscriptionDetailRoute() {
               <Card.Footer className="flex-col gap-4 px-2 py-8">
                 <DetailInfoRow
                   icon={<CalendarIcon className="text-foreground" />}
-                  label="다음 청구일"
+                  label={isInTrial ? "무료 체험 종료일" : "다음 청구일"}
                   value={formatYmd(subscription.nextBillingDate)}
                 />
                 <DetailInfoRow

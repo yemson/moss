@@ -19,7 +19,8 @@ interface FormattedAmountParts {
 
 const formatAmountValue = (amount: number, currency: Currency): string => {
   return new Intl.NumberFormat(currency === "KRW" ? "ko-KR" : "en-US", {
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: currency === "USD" ? 2 : 0,
   }).format(amount);
 };
 

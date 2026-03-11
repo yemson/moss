@@ -4,11 +4,13 @@ import {
   formatDateToYmd,
   parseAmountInput,
   resolveId,
+  sanitizeAmountInput,
   ymdToDate,
   type SelectOption,
 } from "@/lib/subscription-editor";
 import {
   getSubscriptionById,
+  isTrialActive,
   listCategories,
   updateSubscription,
   type BillingCycle,
@@ -29,12 +31,17 @@ export default function EditSubscriptionRoute() {
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("KRW");
   const [billingDate, setBillingDate] = useState("");
+  const [trialEndDate, setTrialEndDate] = useState("");
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [memo, setMemo] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [isTrialEnabled, setIsTrialEnabled] = useState(false);
   const [billingDateValue, setBillingDateValue] = useState(new Date());
   const [billingDateDraft, setBillingDateDraft] = useState(new Date());
+  const [trialEndDateValue, setTrialEndDateValue] = useState(new Date());
+  const [trialEndDateDraft, setTrialEndDateDraft] = useState(new Date());
   const [isBillingDateSheetOpen, setIsBillingDateSheetOpen] = useState(false);
+  const [isTrialEndDateSheetOpen, setIsTrialEndDateSheetOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const initializedSubscriptionIdRef = useRef<string | null>(null);
   const [categories, setCategories] = useState<Category[] | null>(null);
@@ -87,16 +94,26 @@ export default function EditSubscriptionRoute() {
     }
 
     const billingDateAsDate = ymdToDate(loadedSubscription.billingDate);
+    const activeTrialEndDate = isTrialActive(loadedSubscription.trialEndDate)
+      ? loadedSubscription.trialEndDate
+      : null;
+    const trialEndDateAsDate = activeTrialEndDate
+      ? ymdToDate(activeTrialEndDate)
+      : billingDateAsDate;
 
     setCategoryId(loadedSubscription.categoryId);
     setServiceName(loadedSubscription.name);
     setAmount(String(loadedSubscription.amount));
     setCurrency(loadedSubscription.currency);
     setBillingDate(loadedSubscription.billingDate);
+    setTrialEndDate(activeTrialEndDate ?? "");
     setBillingCycle(loadedSubscription.billingCycle);
     setMemo(loadedSubscription.memo ?? "");
+    setIsTrialEnabled(activeTrialEndDate != null);
     setBillingDateValue(billingDateAsDate);
     setBillingDateDraft(billingDateAsDate);
+    setTrialEndDateValue(trialEndDateAsDate);
+    setTrialEndDateDraft(trialEndDateAsDate);
     initializedSubscriptionIdRef.current = loadedSubscription.id;
   }, [loadedSubscription]);
 
@@ -115,6 +132,21 @@ export default function EditSubscriptionRoute() {
     setIsBillingDateSheetOpen(false);
   };
 
+  const handleTrialEndDateSheetOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      Keyboard.dismiss();
+      setTrialEndDateDraft(trialEndDateValue);
+    }
+
+    setIsTrialEndDateSheetOpen(nextOpen);
+  };
+
+  const handleApplyTrialEndDate = () => {
+    setTrialEndDateValue(trialEndDateDraft);
+    setTrialEndDate(formatDateToYmd(trialEndDateDraft));
+    setIsTrialEndDateSheetOpen(false);
+  };
+
   const handleSavePress = async () => {
     if (isSaving) {
       return;
@@ -130,14 +162,20 @@ export default function EditSubscriptionRoute() {
       return;
     }
 
-    const parsedAmount = parseAmountInput(amount);
+    const parsedAmount = parseAmountInput(amount, currency);
     if (parsedAmount == null) {
       Alert.alert("안내", "금액을 입력해주세요.");
       return;
     }
 
-    if (!billingDate.trim()) {
-      Alert.alert("안내", "결제일을 입력해주세요.");
+    const effectiveBillingDate = isTrialEnabled ? trialEndDate : billingDate;
+    if (!effectiveBillingDate.trim()) {
+      Alert.alert(
+        "안내",
+        isTrialEnabled
+          ? "무료 체험 종료일을 입력해주세요."
+          : "결제일을 입력해주세요.",
+      );
       return;
     }
 
@@ -155,7 +193,8 @@ export default function EditSubscriptionRoute() {
         amount: parsedAmount,
         currency,
         billingCycle,
-        billingDate,
+        billingDate: effectiveBillingDate,
+        trialEndDate: isTrialEnabled ? trialEndDate : null,
         categoryId,
         memo: memo.trim() || null,
       });
@@ -175,6 +214,37 @@ export default function EditSubscriptionRoute() {
 
   const saveDisabled =
     isSaving || !subscriptionId || !loadedSubscription || !categoryId;
+
+  const handleAmountChange = (nextAmount: string) => {
+    setAmount(sanitizeAmountInput(nextAmount, currency));
+  };
+
+  const handleCurrencyChange = (nextCurrency: Currency) => {
+    setCurrency(nextCurrency);
+    setAmount((currentAmount) => sanitizeAmountInput(currentAmount, nextCurrency));
+  };
+
+  const handleTrialEnabledChange = (nextEnabled: boolean) => {
+    Keyboard.dismiss();
+    setIsTrialEnabled(nextEnabled);
+
+    if (!nextEnabled) {
+      setIsTrialEndDateSheetOpen(false);
+      setTrialEndDate("");
+      return;
+    }
+
+    const nextValue = trialEndDate
+      ? ymdToDate(trialEndDate)
+      : billingDate
+        ? ymdToDate(billingDate)
+        : new Date();
+    const nextDate = formatDateToYmd(nextValue);
+
+    setTrialEndDateValue(nextValue);
+    setTrialEndDateDraft(nextValue);
+    setTrialEndDate(nextDate);
+  };
 
   return (
     <>
@@ -233,20 +303,28 @@ export default function EditSubscriptionRoute() {
             amount,
             currency,
             billingDate,
+            trialEndDate,
             billingCycle,
             memo,
             categoryId,
+            isTrialEnabled,
             billingDateDraft,
             isBillingDateSheetOpen,
+            trialEndDateDraft,
+            isTrialEndDateSheetOpen,
           }}
           categoryOptions={categoryOptions}
           onServiceNameChange={setServiceName}
-          onAmountChange={setAmount}
-          onCurrencyChange={setCurrency}
+          onAmountChange={handleAmountChange}
+          onCurrencyChange={handleCurrencyChange}
           onBillingCycleChange={setBillingCycle}
+          onTrialEnabledChange={handleTrialEnabledChange}
           onBillingDateSheetOpenChange={handleBillingDateSheetOpenChange}
           onBillingDateDraftChange={setBillingDateDraft}
           onBillingDateApply={handleApplyBillingDate}
+          onTrialEndDateSheetOpenChange={handleTrialEndDateSheetOpenChange}
+          onTrialEndDateDraftChange={setTrialEndDateDraft}
+          onTrialEndDateApply={handleApplyTrialEndDate}
           onCategoryChange={setCategoryId}
           onMemoChange={setMemo}
         />

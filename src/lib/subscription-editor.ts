@@ -23,13 +23,43 @@ export const isBillingCycle = (value: string): value is BillingCycle => {
   return value === "monthly" || value === "yearly";
 };
 
-export const parseAmountInput = (value: string): number | null => {
-  const normalized = value.replace(/[^\d]/g, "");
-  if (normalized.length === 0) {
+export const sanitizeAmountInput = (
+  value: string,
+  currency: Currency,
+): string => {
+  if (currency === "KRW") {
+    return value.replace(/[^\d]/g, "");
+  }
+
+  const normalized = value.replace(/[^\d.]/g, "");
+  const [integerPart = "", ...fractionParts] = normalized.split(".");
+  const fractionPart = fractionParts.join("").slice(0, 2);
+
+  if (normalized.startsWith(".")) {
+    return fractionPart.length > 0 ? `0.${fractionPart}` : "0.";
+  }
+
+  if (normalized.includes(".")) {
+    return `${integerPart}.${fractionPart}`;
+  }
+
+  return integerPart;
+};
+
+export const parseAmountInput = (
+  value: string,
+  currency: Currency,
+): number | null => {
+  const normalized = sanitizeAmountInput(value, currency);
+  if (normalized.length === 0 || normalized === ".") {
     return null;
   }
 
-  const parsed = Number.parseInt(normalized, 10);
+  const parsed =
+    currency === "KRW"
+      ? Number.parseInt(normalized, 10)
+      : Number.parseFloat(normalized);
+
   return Number.isNaN(parsed) ? null : parsed;
 };
 

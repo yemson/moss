@@ -19,6 +19,7 @@ export interface Subscription {
   currency: Currency;
   billingCycle: BillingCycle;
   billingDate: string;
+  trialEndDate: string | null;
   categoryId: string;
   isActive: boolean;
   memo: string | null;
@@ -47,6 +48,7 @@ export interface CreateSubscriptionInput {
   currency: Currency;
   billingCycle: BillingCycle;
   billingDate: string;
+  trialEndDate?: string | null;
   categoryId: string;
   isActive?: boolean;
   memo?: string | null;
@@ -59,6 +61,7 @@ export interface UpdateSubscriptionInput {
   currency?: Currency;
   billingCycle?: BillingCycle;
   billingDate?: string;
+  trialEndDate?: string | null;
   categoryId?: string;
   isActive?: boolean;
   memo?: string | null;
@@ -69,7 +72,21 @@ export interface ListSubscriptionsOptions {
   isActive?: boolean;
 }
 
+export interface UsdKrwExchangeRate {
+  baseCode: "KRW";
+  targetCode: "USD";
+  conversionRate: number;
+  usdToKrwRate: number;
+  timeLastUpdateUnix: number;
+  timeLastUpdateUtc: string;
+  timeNextUpdateUnix: number;
+  timeNextUpdateUtc: string;
+  fetchedAt: string;
+}
+
 const DATABASE_NAME = "subak.db";
+const KRW_USD_EXCHANGE_RATE_URL =
+  "https://v6.exchangerate-api.com/v6/e26bed7dc0ec5fb7dceb395a/pair/KRW/USD";
 
 const PRESET_CATEGORIES: { id: string; name: string }[] = [
   { id: "cat_ott", name: "OTT" },
@@ -129,6 +146,29 @@ function normalizeMemo(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function hasAtMostFractionDigits(value: number, maxFractionDigits: number): boolean {
+  const factor = 10 ** maxFractionDigits;
+  return Math.abs(value * factor - Math.round(value * factor)) < 1e-8;
+}
+
+function assertAmount(amount: number, currency: Currency): void {
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new Error("amount must be a non-negative number.");
+  }
+
+  if (currency === "KRW") {
+    if (!Number.isInteger(amount)) {
+      throw new Error("KRW amount must be a non-negative integer.");
+    }
+
+    return;
+  }
+
+  if (!hasAtMostFractionDigits(amount, 2)) {
+    throw new Error("USD amount must have at most 2 decimal places.");
+  }
+}
+
 function mapCategoryRow(row: {
   id: string;
   name: string;
@@ -153,6 +193,7 @@ function mapSubscriptionRow(row: {
   currency: string;
   billingCycle: string;
   billingDate: string;
+  trialEndDate: string | null;
   categoryId: string;
   isActive: number;
   memo: string | null;
@@ -177,6 +218,7 @@ function mapSubscriptionRow(row: {
     currency: row.currency,
     billingCycle: row.billingCycle,
     billingDate: row.billingDate,
+    trialEndDate: row.trialEndDate,
     categoryId: row.categoryId,
     isActive: row.isActive === 1,
     memo: row.memo,
@@ -184,7 +226,11 @@ function mapSubscriptionRow(row: {
     updatedAt: row.updatedAt,
     categoryName: row.categoryName,
     categoryIsPreset: row.categoryIsPreset === 1,
-    nextBillingDate: calculateNextBillingDate(row.billingDate, row.billingCycle),
+    nextBillingDate: calculateNextBillingDate(
+      row.billingDate,
+      row.billingCycle,
+      row.trialEndDate,
+    ),
   };
 }
 
@@ -212,10 +258,11 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
       templateKey TEXT,
-      amount INTEGER NOT NULL,
+      amount REAL NOT NULL,
       currency TEXT NOT NULL DEFAULT 'KRW' CHECK (currency IN ('KRW', 'USD')),
       billingCycle TEXT NOT NULL CHECK (billingCycle IN ('monthly', 'yearly')),
       billingDate TEXT NOT NULL,
+      trialEndDate TEXT,
       categoryId TEXT NOT NULL,
       isActive INTEGER NOT NULL DEFAULT 1,
       memo TEXT,
@@ -229,6 +276,18 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_subscriptions_is_active
       ON subscriptions(isActive);
+
+    CREATE TABLE IF NOT EXISTS exchange_rates (
+      baseCode TEXT NOT NULL,
+      targetCode TEXT NOT NULL,
+      conversionRate REAL NOT NULL,
+      timeLastUpdateUnix INTEGER NOT NULL,
+      timeLastUpdateUtc TEXT NOT NULL,
+      timeNextUpdateUnix INTEGER NOT NULL,
+      timeNextUpdateUtc TEXT NOT NULL,
+      fetchedAt TEXT NOT NULL,
+      PRIMARY KEY (baseCode, targetCode)
+    );
   `);
 }
 
@@ -237,6 +296,23 @@ async function migrateTemplateKeyColumn(database: SQLiteDatabase): Promise<void>
     await database.execAsync(`
       ALTER TABLE subscriptions
       ADD COLUMN templateKey TEXT
+    `);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+
+    if (message.includes("duplicate column name")) {
+      return;
+    }
+
+    throw error;
+  }
+}
+
+async function migrateTrialEndDateColumn(database: SQLiteDatabase): Promise<void> {
+  try {
+    await database.execAsync(`
+      ALTER TABLE subscriptions
+      ADD COLUMN trialEndDate TEXT
     `);
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
@@ -269,6 +345,7 @@ async function ensureInitialized(): Promise<void> {
       const database = await getDatabase();
       await createSchema(database);
       await migrateTemplateKeyColumn(database);
+      await migrateTrialEndDateColumn(database);
       await seedPresetCategories(database);
     })().catch((error) => {
       initializePromise = null;
@@ -283,6 +360,13 @@ function toIsoDateString(date: Date): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -308,18 +392,30 @@ function addCycle(date: Date, cycle: BillingCycle): Date {
   return new Date(Date.UTC(targetYear, month, Math.min(day, maxDay)));
 }
 
+export function isTrialActive(
+  trialEndDate: string | null,
+  baseDate: Date = new Date(),
+): boolean {
+  if (!trialEndDate) {
+    return false;
+  }
+
+  assertBillingDate(trialEndDate);
+  return trialEndDate >= toLocalDateString(baseDate);
+}
+
 export function calculateNextBillingDate(
   billingDate: string,
   billingCycle: BillingCycle,
+  trialEndDate: string | null = null,
   baseDate: Date = new Date(),
 ): string {
   assertBillingDate(billingDate);
 
-  const [year, month, day] = billingDate.split("-").map(Number);
-  const maxDay = getLastDayOfMonthUtc(year, month - 1);
-  const anchoredDay = Math.min(day, maxDay);
+  if (trialEndDate) {
+    assertBillingDate(trialEndDate);
+  }
 
-  let nextDate = new Date(Date.UTC(year, month - 1, anchoredDay));
   const base = new Date(
     Date.UTC(
       baseDate.getUTCFullYear(),
@@ -328,6 +424,23 @@ export function calculateNextBillingDate(
     ),
   );
 
+  if (trialEndDate) {
+    const [trialYear, trialMonth, trialDay] = trialEndDate.split("-").map(Number);
+    const normalizedTrialDate = new Date(
+      Date.UTC(trialYear, trialMonth - 1, trialDay),
+    );
+
+    if (normalizedTrialDate >= base) {
+      return trialEndDate;
+    }
+  }
+
+  const [year, month, day] = billingDate.split("-").map(Number);
+  const maxDay = getLastDayOfMonthUtc(year, month - 1);
+  const anchoredDay = Math.min(day, maxDay);
+
+  let nextDate = new Date(Date.UTC(year, month - 1, anchoredDay));
+
   while (nextDate < base) {
     nextDate = addCycle(nextDate, billingCycle);
   }
@@ -335,8 +448,170 @@ export function calculateNextBillingDate(
   return toIsoDateString(nextDate);
 }
 
+function mapUsdKrwExchangeRateRow(row: {
+  baseCode: string;
+  targetCode: string;
+  conversionRate: number;
+  timeLastUpdateUnix: number;
+  timeLastUpdateUtc: string;
+  timeNextUpdateUnix: number;
+  timeNextUpdateUtc: string;
+  fetchedAt: string;
+}): UsdKrwExchangeRate {
+  if (row.baseCode !== "KRW" || row.targetCode !== "USD") {
+    throw new Error("Unexpected exchange rate pair in database.");
+  }
+
+  if (row.conversionRate <= 0) {
+    throw new Error("Invalid exchange rate value in database.");
+  }
+
+  return {
+    baseCode: "KRW",
+    targetCode: "USD",
+    conversionRate: row.conversionRate,
+    usdToKrwRate: 1 / row.conversionRate,
+    timeLastUpdateUnix: row.timeLastUpdateUnix,
+    timeLastUpdateUtc: row.timeLastUpdateUtc,
+    timeNextUpdateUnix: row.timeNextUpdateUnix,
+    timeNextUpdateUtc: row.timeNextUpdateUtc,
+    fetchedAt: row.fetchedAt,
+  };
+}
+
+async function getStoredUsdKrwRateRow() {
+  await ensureInitialized();
+  const database = await getDatabase();
+
+  return database.getFirstAsync<{
+    baseCode: string;
+    targetCode: string;
+    conversionRate: number;
+    timeLastUpdateUnix: number;
+    timeLastUpdateUtc: string;
+    timeNextUpdateUnix: number;
+    timeNextUpdateUtc: string;
+    fetchedAt: string;
+  }>(
+    `
+      SELECT
+        baseCode,
+        targetCode,
+        conversionRate,
+        timeLastUpdateUnix,
+        timeLastUpdateUtc,
+        timeNextUpdateUnix,
+        timeNextUpdateUtc,
+        fetchedAt
+      FROM exchange_rates
+      WHERE baseCode = 'KRW' AND targetCode = 'USD'
+      LIMIT 1
+    `,
+  );
+}
+
+async function storeUsdKrwRate(rate: Omit<UsdKrwExchangeRate, "usdToKrwRate">) {
+  await ensureInitialized();
+  const database = await getDatabase();
+
+  await database.runAsync(
+    `
+      INSERT OR REPLACE INTO exchange_rates (
+        baseCode,
+        targetCode,
+        conversionRate,
+        timeLastUpdateUnix,
+        timeLastUpdateUtc,
+        timeNextUpdateUnix,
+        timeNextUpdateUtc,
+        fetchedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      rate.baseCode,
+      rate.targetCode,
+      rate.conversionRate,
+      rate.timeLastUpdateUnix,
+      rate.timeLastUpdateUtc,
+      rate.timeNextUpdateUnix,
+      rate.timeNextUpdateUtc,
+      rate.fetchedAt,
+    ],
+  );
+}
+
+async function fetchUsdKrwRateFromApi() {
+  const response = await fetch(KRW_USD_EXCHANGE_RATE_URL);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch exchange rate. HTTP ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    result?: unknown;
+    base_code?: unknown;
+    target_code?: unknown;
+    conversion_rate?: unknown;
+    time_last_update_unix?: unknown;
+    time_last_update_utc?: unknown;
+    time_next_update_unix?: unknown;
+    time_next_update_utc?: unknown;
+  };
+
+  if (
+    payload.result !== "success" ||
+    payload.base_code !== "KRW" ||
+    payload.target_code !== "USD" ||
+    typeof payload.conversion_rate !== "number" ||
+    payload.conversion_rate <= 0 ||
+    typeof payload.time_last_update_unix !== "number" ||
+    typeof payload.time_last_update_utc !== "string" ||
+    typeof payload.time_next_update_unix !== "number" ||
+    typeof payload.time_next_update_utc !== "string"
+  ) {
+    throw new Error("Received an invalid exchange rate response.");
+  }
+
+  return {
+    baseCode: "KRW" as const,
+    targetCode: "USD" as const,
+    conversionRate: payload.conversion_rate,
+    timeLastUpdateUnix: payload.time_last_update_unix,
+    timeLastUpdateUtc: payload.time_last_update_utc,
+    timeNextUpdateUnix: payload.time_next_update_unix,
+    timeNextUpdateUtc: payload.time_next_update_utc,
+    fetchedAt: nowIsoString(),
+  };
+}
+
 export async function initializeSubscriptionStore(): Promise<void> {
   await ensureInitialized();
+}
+
+export async function getStoredUsdKrwRate(): Promise<UsdKrwExchangeRate | null> {
+  const storedRate = await getStoredUsdKrwRateRow();
+  return storedRate ? mapUsdKrwExchangeRateRow(storedRate) : null;
+}
+
+export async function getUsdKrwRate(): Promise<UsdKrwExchangeRate | null> {
+  const storedRate = await getStoredUsdKrwRate();
+  const currentUnixTime = Math.floor(Date.now() / 1000);
+
+  if (storedRate && currentUnixTime < storedRate.timeNextUpdateUnix) {
+    return storedRate;
+  }
+
+  try {
+    const fetchedRate = await fetchUsdKrwRateFromApi();
+    await storeUsdKrwRate(fetchedRate);
+    return {
+      ...fetchedRate,
+      usdToKrwRate: 1 / fetchedRate.conversionRate,
+    };
+  } catch (error) {
+    console.error("Failed to refresh USD/KRW exchange rate:", error);
+    return storedRate;
+  }
 }
 
 export async function listCategories(): Promise<Category[]> {
@@ -510,19 +785,21 @@ export async function createSubscription(
     throw new Error("Subscription name is required.");
   }
 
-  if (!Number.isInteger(input.amount) || input.amount < 0) {
-    throw new Error("amount must be a non-negative integer.");
-  }
-
   if (!isCurrency(input.currency)) {
     throw new Error("currency must be KRW or USD.");
   }
+
+  assertAmount(input.amount, input.currency);
 
   if (!isBillingCycle(input.billingCycle)) {
     throw new Error("billingCycle must be monthly or yearly.");
   }
 
   assertBillingDate(input.billingDate);
+
+  if (input.trialEndDate != null) {
+    assertBillingDate(input.trialEndDate);
+  }
 
   await ensureInitialized();
   const database = await getDatabase();
@@ -540,12 +817,13 @@ export async function createSubscription(
         currency,
         billingCycle,
         billingDate,
+        trialEndDate,
         categoryId,
         isActive,
         memo,
         createdAt,
         updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
@@ -555,6 +833,7 @@ export async function createSubscription(
       input.currency,
       input.billingCycle,
       input.billingDate,
+      input.trialEndDate ?? null,
       input.categoryId,
       input.isActive === false ? 0 : 1,
       normalizeMemo(input.memo),
@@ -600,6 +879,7 @@ export async function listSubscriptions(
     currency: string;
     billingCycle: string;
     billingDate: string;
+    trialEndDate: string | null;
     categoryId: string;
     isActive: number;
     memo: string | null;
@@ -617,6 +897,7 @@ export async function listSubscriptions(
         s.currency,
         s.billingCycle,
         s.billingDate,
+        s.trialEndDate,
         s.categoryId,
         s.isActive,
         s.memo,
@@ -649,6 +930,7 @@ export async function getSubscriptionById(
     currency: string;
     billingCycle: string;
     billingDate: string;
+    trialEndDate: string | null;
     categoryId: string;
     isActive: number;
     memo: string | null;
@@ -666,6 +948,7 @@ export async function getSubscriptionById(
         s.currency,
         s.billingCycle,
         s.billingDate,
+        s.trialEndDate,
         s.categoryId,
         s.isActive,
         s.memo,
@@ -690,6 +973,16 @@ export async function updateSubscription(
 ): Promise<SubscriptionWithCategory> {
   await ensureInitialized();
   const database = await getDatabase();
+  let amountCurrency = input.currency;
+
+  if (input.amount !== undefined && amountCurrency === undefined) {
+    const existing = await getSubscriptionById(subscriptionId);
+    if (!existing) {
+      throw new Error("Subscription not found.");
+    }
+
+    amountCurrency = existing.currency;
+  }
 
   const sets: string[] = [];
   const params: (string | number | null)[] = [];
@@ -709,9 +1002,7 @@ export async function updateSubscription(
   }
 
   if (input.amount !== undefined) {
-    if (!Number.isInteger(input.amount) || input.amount < 0) {
-      throw new Error("amount must be a non-negative integer.");
-    }
+    assertAmount(input.amount, amountCurrency ?? "KRW");
     sets.push("amount = ?");
     params.push(input.amount);
   }
@@ -736,6 +1027,15 @@ export async function updateSubscription(
     assertBillingDate(input.billingDate);
     sets.push("billingDate = ?");
     params.push(input.billingDate);
+  }
+
+  if (input.trialEndDate !== undefined) {
+    if (input.trialEndDate !== null) {
+      assertBillingDate(input.trialEndDate);
+    }
+
+    sets.push("trialEndDate = ?");
+    params.push(input.trialEndDate);
   }
 
   if (input.categoryId !== undefined) {

@@ -1,10 +1,12 @@
 import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
-import { formatAmountParts } from "@/lib/subscription-format";
+import { formatAmount, formatAmountParts } from "@/lib/subscription-format";
 import type {
   BillingCycle,
   SubscriptionWithCategory,
+  UsdKrwExchangeRate,
 } from "@/lib/subscription-store";
+import { isTrialActive } from "@/lib/subscription-store";
 import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { Card } from "heroui-native";
 import { PencilIcon, Trash2Icon } from "lucide-uniwind";
@@ -240,6 +242,7 @@ function RightActions({
 
 interface SubscriptionCardProps {
   subscription: SubscriptionWithCategory;
+  exchangeRate?: UsdKrwExchangeRate | null;
   swipeableRef?: RefObject<SwipeableMethods | null>;
   onPress?: () => void;
   onEdit: () => void;
@@ -250,6 +253,7 @@ interface SubscriptionCardProps {
 
 export function SubscriptionCard({
   subscription,
+  exchangeRate,
   swipeableRef,
   onPress,
   onEdit,
@@ -262,6 +266,7 @@ export function SubscriptionCard({
     subscription.billingDate,
     subscription.billingCycle,
   );
+  const isInTrial = isTrialActive(subscription.trialEndDate);
   const ddayLabel = getDdayLabel(subscription.nextBillingDate);
   const isDueToday = ddayLabel === "오늘";
 
@@ -270,6 +275,14 @@ export function SubscriptionCard({
     subscription.currency,
     currencyDisplayMode,
   );
+  const convertedAmountLabel =
+    subscription.currency === "USD" && exchangeRate
+      ? formatAmount(
+          Math.round(subscription.amount * exchangeRate.usdToKrwRate),
+          "KRW",
+          currencyDisplayMode,
+        )
+      : null;
 
   const handlePress = useCallback(() => {
     hapticImpactLight();
@@ -329,6 +342,11 @@ export function SubscriptionCard({
                     {subscription.name}
                   </Card.Title>
                   <View className="flex-row items-baseline gap-0.5">
+                    {convertedAmountLabel && (
+                      <Text className="text-base font-medium text-foreground/50">
+                        {convertedAmountLabel} ·
+                      </Text>
+                    )}
                     {amountParts.currencyLabelPosition === "prefix" && (
                       <Text className="text-base font-semibold text-black dark:text-white">
                         {amountParts.currencyLabel}
@@ -345,32 +363,43 @@ export function SubscriptionCard({
                   </View>
                 </View>
 
-                <View className="flex-row items-center justify-between gap-3">
-                  <Card.Description
-                    className="min-w-0 flex-1 text-xs text-foreground/50"
-                    numberOfLines={1}
-                  >
-                    {recurringBillingLabel}
-                  </Card.Description>
-                  <View className="flex-row shrink-0 items-center gap-1.5">
-                    <View
-                      className={
-                        isDueToday
-                          ? "rounded-full bg-success-soft px-2 py-0.5"
-                          : "rounded-full bg-surface-secondary px-2 py-0.5 dark:bg-surface-secondary"
-                      }
+                <View className="flex-row items-center justify-between gap-2">
+                  <View className="min-w-0 flex-1 flex-row items-center gap-2">
+                    <Card.Description
+                      className="min-w-0 flex-1 text-sm text-foreground/50"
+                      numberOfLines={1}
                     >
-                      <Text
+                      {recurringBillingLabel}
+                    </Card.Description>
+                    {isInTrial && (
+                      <View className="rounded-full bg-info/20 px-2 py-0.5">
+                        <Text className="text-[12px] font-semibold text-info">
+                          무료 체험 {isDueToday ? "오늘" : ddayLabel} 종료
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  {!isInTrial && (
+                    <View className="flex-row shrink-0 items-center gap-1.5">
+                      <View
                         className={
                           isDueToday
-                            ? "text-[11px] font-semibold text-success"
-                            : "text-[11px] font-semibold text-foreground/50"
+                            ? "rounded-full bg-success-soft px-2 py-0.5"
+                            : "rounded-full bg-surface-secondary px-2 py-0.5 dark:bg-surface-secondary"
                         }
                       >
-                        {ddayLabel}
-                      </Text>
+                        <Text
+                          className={
+                            isDueToday
+                              ? "text-[12px] font-semibold text-success"
+                              : "text-[12px] font-semibold text-foreground/50"
+                          }
+                        >
+                          {ddayLabel}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
+                  )}
                 </View>
               </View>
             </View>

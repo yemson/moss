@@ -5,8 +5,10 @@ import { SubscriptionSummaryCard } from "@/components/subscriptions/subscription
 import { hapticImpactLight } from "@/lib/haptics";
 import {
   deleteSubscription,
+  getUsdKrwRate,
   listSubscriptions,
   type SubscriptionWithCategory,
+  type UsdKrwExchangeRate,
 } from "@/lib/subscription-store";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useRouter } from "expo-router";
@@ -78,6 +80,9 @@ export default function HomeRoute() {
   const [subscriptions, setSubscriptions] = useState<
     SubscriptionWithCategory[] | null
   >(null);
+  const [exchangeRate, setExchangeRate] = useState<UsdKrwExchangeRate | null>(
+    null,
+  );
   const [selectedCategoryKey, setSelectedCategoryKey] =
     useState<string>(ALL_CATEGORY_KEY);
   const [sortOption, setSortOption] = useState<SortOption>(SORT_OPTIONS[0]);
@@ -88,8 +93,12 @@ export default function HomeRoute() {
 
   const loadSubscriptions = useCallback(async () => {
     try {
-      const nextSubscriptions = await listSubscriptions({ isActive: true });
+      const [nextSubscriptions, nextExchangeRate] = await Promise.all([
+        listSubscriptions({ isActive: true }),
+        getUsdKrwRate(),
+      ]);
       setSubscriptions(nextSubscriptions);
+      setExchangeRate(nextExchangeRate);
     } catch (error) {
       console.error("Failed to load subscriptions:", error);
       setSubscriptions((currentSubscriptions) => currentSubscriptions ?? []);
@@ -260,6 +269,7 @@ export default function HomeRoute() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <SubscriptionCard
+              exchangeRate={exchangeRate}
               swipeableRef={getSwipeableRef(item.id)}
               onSwipeableWillOpen={() => handleSwipeableWillOpen(item.id)}
               onSwipeableClose={() => handleSwipeableClose(item.id)}
@@ -281,7 +291,10 @@ export default function HomeRoute() {
           }}
           ListHeaderComponent={
             <>
-              <SubscriptionSummaryCard subscriptions={subscriptions ?? []} />
+              <SubscriptionSummaryCard
+                subscriptions={subscriptions ?? []}
+                exchangeRate={exchangeRate}
+              />
 
               <Text className="mb-3 mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
                 구독 목록
