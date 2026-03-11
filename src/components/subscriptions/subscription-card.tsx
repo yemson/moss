@@ -5,7 +5,7 @@ import type {
   BillingCycle,
   SubscriptionWithCategory,
 } from "@/lib/subscription-store";
-import { SubscriptionInitialBadge } from "@/components/subscriptions/subscription-initial-badge";
+import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { Card } from "heroui-native";
 import { PencilIcon, Trash2Icon } from "lucide-uniwind";
 import { useCallback, type ReactNode, type RefObject } from "react";
@@ -314,7 +314,11 @@ export function SubscriptionCard({
         >
           <Card.Body className="gap-1.5 p-0">
             <View className="flex-row items-start gap-3">
-              <SubscriptionInitialBadge name={subscription.name} size="card" />
+              <SubscriptionServiceBadge
+                name={subscription.name}
+                templateKey={subscription.templateKey}
+                size="card"
+              />
 
               <View className="min-w-0 flex-1 gap-1.5">
                 <View className="flex-row items-start justify-between gap-3">

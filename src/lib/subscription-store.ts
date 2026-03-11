@@ -14,6 +14,7 @@ export interface Category {
 export interface Subscription {
   id: string;
   name: string;
+  templateKey: string | null;
   amount: number;
   currency: Currency;
   billingCycle: BillingCycle;
@@ -41,6 +42,7 @@ export interface UpdateCategoryInput {
 
 export interface CreateSubscriptionInput {
   name: string;
+  templateKey?: string | null;
   amount: number;
   currency: Currency;
   billingCycle: BillingCycle;
@@ -52,6 +54,7 @@ export interface CreateSubscriptionInput {
 
 export interface UpdateSubscriptionInput {
   name?: string;
+  templateKey?: string | null;
   amount?: number;
   currency?: Currency;
   billingCycle?: BillingCycle;
@@ -145,6 +148,7 @@ function mapCategoryRow(row: {
 function mapSubscriptionRow(row: {
   id: string;
   name: string;
+  templateKey: string | null;
   amount: number;
   currency: string;
   billingCycle: string;
@@ -168,6 +172,7 @@ function mapSubscriptionRow(row: {
   return {
     id: row.id,
     name: row.name,
+    templateKey: row.templateKey,
     amount: row.amount,
     currency: row.currency,
     billingCycle: row.billingCycle,
@@ -206,6 +211,7 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS subscriptions (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
+      templateKey TEXT,
       amount INTEGER NOT NULL,
       currency TEXT NOT NULL DEFAULT 'KRW' CHECK (currency IN ('KRW', 'USD')),
       billingCycle TEXT NOT NULL CHECK (billingCycle IN ('monthly', 'yearly')),
@@ -224,6 +230,23 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_subscriptions_is_active
       ON subscriptions(isActive);
   `);
+}
+
+async function migrateTemplateKeyColumn(database: SQLiteDatabase): Promise<void> {
+  try {
+    await database.execAsync(`
+      ALTER TABLE subscriptions
+      ADD COLUMN templateKey TEXT
+    `);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+
+    if (message.includes("duplicate column name")) {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 async function seedPresetCategories(database: SQLiteDatabase): Promise<void> {
@@ -245,6 +268,7 @@ async function ensureInitialized(): Promise<void> {
     initializePromise = (async () => {
       const database = await getDatabase();
       await createSchema(database);
+      await migrateTemplateKeyColumn(database);
       await seedPresetCategories(database);
     })().catch((error) => {
       initializePromise = null;
@@ -511,6 +535,7 @@ export async function createSubscription(
       INSERT INTO subscriptions (
         id,
         name,
+        templateKey,
         amount,
         currency,
         billingCycle,
@@ -520,11 +545,12 @@ export async function createSubscription(
         memo,
         createdAt,
         updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
       trimmedName,
+      input.templateKey ?? null,
       input.amount,
       input.currency,
       input.billingCycle,
@@ -569,6 +595,7 @@ export async function listSubscriptions(
   const rows = await database.getAllAsync<{
     id: string;
     name: string;
+    templateKey: string | null;
     amount: number;
     currency: string;
     billingCycle: string;
@@ -585,6 +612,7 @@ export async function listSubscriptions(
       SELECT
         s.id,
         s.name,
+        s.templateKey,
         s.amount,
         s.currency,
         s.billingCycle,
@@ -616,6 +644,7 @@ export async function getSubscriptionById(
   const row = await database.getFirstAsync<{
     id: string;
     name: string;
+    templateKey: string | null;
     amount: number;
     currency: string;
     billingCycle: string;
@@ -632,6 +661,7 @@ export async function getSubscriptionById(
       SELECT
         s.id,
         s.name,
+        s.templateKey,
         s.amount,
         s.currency,
         s.billingCycle,
@@ -671,6 +701,11 @@ export async function updateSubscription(
     }
     sets.push("name = ?");
     params.push(trimmedName);
+  }
+
+  if (input.templateKey !== undefined) {
+    sets.push("templateKey = ?");
+    params.push(input.templateKey);
   }
 
   if (input.amount !== undefined) {

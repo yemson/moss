@@ -8,7 +8,7 @@ import {
   type BillingCycle,
   type SubscriptionWithCategory,
 } from "@/lib/subscription-store";
-import { SubscriptionInitialBadge } from "@/components/subscriptions/subscription-initial-badge";
+import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Card, Separator } from "heroui-native";
@@ -186,8 +186,9 @@ export default function SubscriptionDetailRoute() {
               className="overflow-hidden rounded-[30px] p-5 shadow-lg shadow-neutral-300/10 dark:shadow-none"
             >
               <Card.Body className="items-center gap-4 px-1 py-2">
-                <SubscriptionInitialBadge
+                <SubscriptionServiceBadge
                   name={subscription.name}
+                  templateKey={subscription.templateKey}
                   size="hero"
                 />
 

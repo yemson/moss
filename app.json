@@ -39,6 +39,9 @@
       "eas": {
         "projectId": "bf20214f-3aaa-484b-a453-e65d9ea5f691"
       }
+    },
+    "android": {
+      "package": "com.yemson.subak"
     }
   }
 }

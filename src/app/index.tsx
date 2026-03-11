@@ -227,11 +227,11 @@ export default function HomeRoute() {
           <Pressable
             onPressIn={hapticImpactLight}
             onPress={() => {
-              if (consumeOpenedSwipeable()) {
-                return;
-              }
-
               router.navigate("/settings");
+
+              setTimeout(() => {
+                consumeOpenedSwipeable();
+              }, 300);
             }}
             hitSlop={10}
             className="w-8 h-8 items-center justify-center"
@@ -264,10 +264,6 @@ export default function HomeRoute() {
               onSwipeableWillOpen={() => handleSwipeableWillOpen(item.id)}
               onSwipeableClose={() => handleSwipeableClose(item.id)}
               onPress={() => {
-                if (consumeOpenedSwipeable()) {
-                  return;
-                }
-
                 router.navigate(`/subscriptions/${item.id}`);
               }}
               onEdit={() => router.navigate(`/subscriptions/${item.id}/edit`)}
@@ -300,9 +296,10 @@ export default function HomeRoute() {
                 <SubscriptionSortSelect
                   value={sortOption}
                   options={SORT_OPTIONS}
-                  onValueChange={(nextSortOption) =>
-                    setSortOption(nextSortOption as SortOption)
-                  }
+                  onValueChange={(nextSortOption) => {
+                    setSortOption(nextSortOption as SortOption);
+                    consumeOpenedSwipeable();
+                  }}
                 />
               </View>
             </>
@@ -313,10 +310,6 @@ export default function HomeRoute() {
       <Button
         onPressIn={hapticImpactLight}
         onPress={() => {
-          if (consumeOpenedSwipeable()) {
-            return;
-          }
-
           router.navigate("/subscriptions/new");
         }}
         isIconOnly

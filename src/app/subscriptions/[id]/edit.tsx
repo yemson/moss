@@ -34,7 +34,7 @@ export default function EditSubscriptionRoute() {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [billingDateValue, setBillingDateValue] = useState(new Date());
   const [billingDateDraft, setBillingDateDraft] = useState(new Date());
-  const [isBillingDateDialogOpen, setIsBillingDateDialogOpen] = useState(false);
+  const [isBillingDateSheetOpen, setIsBillingDateSheetOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const initializedSubscriptionIdRef = useRef<string | null>(null);
   const [categories, setCategories] = useState<Category[] | null>(null);
@@ -100,19 +100,19 @@ export default function EditSubscriptionRoute() {
     initializedSubscriptionIdRef.current = loadedSubscription.id;
   }, [loadedSubscription]);
 
-  const handleBillingDateDialogOpenChange = (nextOpen: boolean) => {
+  const handleBillingDateSheetOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
       Keyboard.dismiss();
       setBillingDateDraft(billingDateValue);
     }
 
-    setIsBillingDateDialogOpen(nextOpen);
+    setIsBillingDateSheetOpen(nextOpen);
   };
 
   const handleApplyBillingDate = () => {
     setBillingDateValue(billingDateDraft);
     setBillingDate(formatDateToYmd(billingDateDraft));
-    setIsBillingDateDialogOpen(false);
+    setIsBillingDateSheetOpen(false);
   };
 
   const handleSavePress = async () => {
@@ -237,14 +237,14 @@ export default function EditSubscriptionRoute() {
             memo,
             categoryId,
             billingDateDraft,
-            isBillingDateDialogOpen,
+            isBillingDateSheetOpen,
           }}
           categoryOptions={categoryOptions}
           onServiceNameChange={setServiceName}
           onAmountChange={setAmount}
           onCurrencyChange={setCurrency}
           onBillingCycleChange={setBillingCycle}
-          onBillingDateDialogOpenChange={handleBillingDateDialogOpenChange}
+          onBillingDateSheetOpenChange={handleBillingDateSheetOpenChange}
           onBillingDateDraftChange={setBillingDateDraft}
           onBillingDateApply={handleApplyBillingDate}
           onCategoryChange={setCategoryId}

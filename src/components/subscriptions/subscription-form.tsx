@@ -1,5 +1,10 @@
 import { hapticSelection } from "@/lib/haptics";
 import {
+  SUBSCRIPTION_TEMPLATES,
+  getSubscriptionTemplate,
+} from "@/lib/subscription-templates";
+import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
+import {
   BILLING_CYCLE_OPTIONS,
   CURRENCY_OPTIONS,
   isBillingCycle,
@@ -9,8 +14,8 @@ import {
 import type { BillingCycle, Currency } from "@/lib/subscription-store";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
+  BottomSheet,
   Button,
-  Dialog,
   Input,
   Select,
   Separator,
@@ -32,6 +37,7 @@ const SPINNER_PICKER_HEIGHT = 216;
 const SPINNER_PICKER_WIDTH = 320;
 
 export interface SubscriptionFormValues {
+  templateKey?: string | null;
   serviceName: string;
   amount: string;
   currency: Currency;
@@ -40,18 +46,19 @@ export interface SubscriptionFormValues {
   memo: string;
   categoryId: string | null;
   billingDateDraft: Date;
-  isBillingDateDialogOpen: boolean;
+  isBillingDateSheetOpen: boolean;
 }
 
 interface SubscriptionFormProps {
   mode: "create" | "edit";
   values: SubscriptionFormValues;
   categoryOptions: SelectOption[];
+  onTemplateChange?: (templateKey: string | null) => void;
   onServiceNameChange: (value: string) => void;
   onAmountChange: (value: string) => void;
   onCurrencyChange: (value: Currency) => void;
   onBillingCycleChange: (value: BillingCycle) => void;
-  onBillingDateDialogOpenChange: (nextOpen: boolean) => void;
+  onBillingDateSheetOpenChange: (nextOpen: boolean) => void;
   onBillingDateDraftChange: (date: Date) => void;
   onBillingDateApply: () => void;
   onCategoryChange: (categoryId: string) => void;
@@ -59,14 +66,15 @@ interface SubscriptionFormProps {
 }
 
 export function SubscriptionForm({
-  mode: _mode,
+  mode,
   values,
   categoryOptions,
+  onTemplateChange,
   onServiceNameChange,
   onAmountChange,
   onCurrencyChange,
   onBillingCycleChange,
-  onBillingDateDialogOpenChange,
+  onBillingDateSheetOpenChange,
   onBillingDateDraftChange,
   onBillingDateApply,
   onCategoryChange,
@@ -88,6 +96,14 @@ export function SubscriptionForm({
   const selectedCategory = categoryOptions.find(
     (option) => option.value === values.categoryId,
   );
+  const selectedTemplate =
+    values.templateKey != null
+      ? {
+          value: values.templateKey,
+          label:
+            getSubscriptionTemplate(values.templateKey)?.name ?? "템플릿 선택",
+        }
+      : { value: "__custom", label: "직접 입력" };
 
   const scrollToFocusedField = (target: number | null | undefined) => {
     if (!target) {
@@ -128,6 +144,95 @@ export function SubscriptionForm({
         contentContainerClassName="gap-4 pb-20"
       >
         <>
+          {mode === "create" && onTemplateChange && (
+            <View className="flex-col">
+              <Text className="ml-1 mb-1.5 font-semibold dark:text-white">
+                템플릿
+              </Text>
+              <Select
+                value={selectedTemplate}
+                onValueChange={(nextValue) => {
+                  hapticSelection();
+
+                  if (!nextValue) {
+                    return;
+                  }
+
+                  onTemplateChange(
+                    nextValue.value === "__custom" ? null : nextValue.value,
+                  );
+                }}
+                onOpenChange={(isOpen) => {
+                  if (isOpen) {
+                    Keyboard.dismiss();
+                  }
+                }}
+                presentation="popover"
+              >
+                <Select.Trigger
+                  className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
+                  onPressIn={dismissKeyboardAndHaptic}
+                >
+                  <Select.Value placeholder="템플릿 선택" />
+                  <Select.TriggerIndicator />
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Overlay className="bg-black/20 dark:bg-black/40" />
+                  <Select.Content
+                    presentation="popover"
+                    width="full"
+                    placement="bottom"
+                    align="end"
+                  >
+                    <Select.ListLabel className="mb-2">
+                      템플릿 선택
+                    </Select.ListLabel>
+                    <Select.Item value="__custom" label="직접 입력">
+                      <View className="flex-row items-center gap-3 flex-1">
+                        <View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-secondary">
+                          <Text className="font-semibold text-surface-foreground">
+                            +
+                          </Text>
+                        </View>
+                        <View className="flex-1">
+                          <Select.ItemLabel />
+                          <Select.ItemDescription>
+                            템플릿 없이 직접 입력
+                          </Select.ItemDescription>
+                        </View>
+                      </View>
+                      <Select.ItemIndicator />
+                    </Select.Item>
+                    <Separator className="my-1 opacity-40" />
+                    {SUBSCRIPTION_TEMPLATES.map((template, index) => (
+                      <Fragment key={template.key}>
+                        <Select.Item value={template.key} label={template.name}>
+                          <View className="flex-row items-center gap-3 flex-1">
+                            <SubscriptionServiceBadge
+                              name={template.name}
+                              templateKey={template.key}
+                              size="sm"
+                            />
+                            <View className="flex-1">
+                              <Select.ItemLabel />
+                              <Select.ItemDescription>
+                                {template.categoryLabel}
+                              </Select.ItemDescription>
+                            </View>
+                          </View>
+                          <Select.ItemIndicator />
+                        </Select.Item>
+                        {index < SUBSCRIPTION_TEMPLATES.length - 1 && (
+                          <Separator className="my-1 opacity-40" />
+                        )}
+                      </Fragment>
+                    ))}
+                  </Select.Content>
+                </Select.Portal>
+              </Select>
+            </View>
+          )}
+
           <TextField isRequired>
             <Text className="ml-1 font-semibold dark:text-white">
               서비스 이름
@@ -138,7 +243,6 @@ export function SubscriptionForm({
               onChangeText={onServiceNameChange}
               onFocus={(event) => {
                 hapticSelection();
-                scrollToFocusedField(event.nativeEvent.target);
               }}
               placeholder="예: Netflix"
               autoCapitalize="none"
@@ -185,7 +289,9 @@ export function SubscriptionForm({
                   {categoryOptions.map((option, index) => (
                     <Fragment key={option.value}>
                       <Select.Item value={option.value} label={option.label} />
-                      {index < categoryOptions.length - 1 && <Separator />}
+                      {index < categoryOptions.length - 1 && (
+                        <Separator className="opacity-40" />
+                      )}
                     </Fragment>
                   ))}
                 </Select.Content>
@@ -249,7 +355,9 @@ export function SubscriptionForm({
                           value={option.value}
                           label={option.label}
                         />
-                        {index < CURRENCY_OPTIONS.length - 1 && <Separator />}
+                        {index < CURRENCY_OPTIONS.length - 1 && (
+                          <Separator className="opacity-40" />
+                        )}
                       </Fragment>
                     ))}
                   </Select.Content>
@@ -260,15 +368,15 @@ export function SubscriptionForm({
 
           <View className="flex-row items-end gap-3">
             <View className="flex-2">
-              <Dialog
-                isOpen={values.isBillingDateDialogOpen}
-                onOpenChange={onBillingDateDialogOpenChange}
+              <BottomSheet
+                isOpen={values.isBillingDateSheetOpen}
+                onOpenChange={onBillingDateSheetOpenChange}
               >
                 <TextField isRequired>
                   <Text className="ml-1 font-semibold dark:text-white">
                     결제일
                   </Text>
-                  <Dialog.Trigger asChild>
+                  <BottomSheet.Trigger asChild>
                     <Pressable onPressIn={dismissKeyboardAndHaptic}>
                       <View pointerEvents="none">
                         <Input
@@ -280,23 +388,20 @@ export function SubscriptionForm({
                         />
                       </View>
                     </Pressable>
-                  </Dialog.Trigger>
+                  </BottomSheet.Trigger>
                 </TextField>
 
-                <Dialog.Portal className="p-2">
-                  <Dialog.Overlay className="bg-black/20 dark:bg-black/40" />
-                  <Dialog.Content
-                    className="p-4"
-                    style={{
-                      width: Math.min(screenWidth - 28, 420),
-                      alignSelf: "center",
-                    }}
+                <BottomSheet.Portal>
+                  <BottomSheet.Overlay className="bg-black/20 dark:bg-black/40" />
+                  <BottomSheet.Content
+                    className=""
+                    contentContainerClassName="gap-4"
                   >
-                    <View className="mb-3 gap-1">
-                      <Dialog.Title>결제일 선택</Dialog.Title>
-                      <Dialog.Description>
+                    <View className="gap-1">
+                      <BottomSheet.Title>결제일 선택</BottomSheet.Title>
+                      <BottomSheet.Description>
                         구독을 시작한 날짜를 선택하세요.
-                      </Dialog.Description>
+                      </BottomSheet.Description>
                     </View>
 
                     <View
@@ -325,7 +430,7 @@ export function SubscriptionForm({
                         variant="secondary"
                         className="flex-1"
                         size="lg"
-                        onPress={() => onBillingDateDialogOpenChange(false)}
+                        onPress={() => onBillingDateSheetOpenChange(false)}
                       >
                         <Button.Label>취소</Button.Label>
                       </Button>
@@ -335,12 +440,12 @@ export function SubscriptionForm({
                         onPressIn={hapticSelection}
                         onPress={onBillingDateApply}
                       >
-                        <Button.Label>완료</Button.Label>
+                        <Button.Label className="text-white">완료</Button.Label>
                       </Button>
                     </View>
-                  </Dialog.Content>
-                </Dialog.Portal>
-              </Dialog>
+                  </BottomSheet.Content>
+                </BottomSheet.Portal>
+              </BottomSheet>
             </View>
 
             <View className="flex-1 gap-2">
@@ -385,7 +490,7 @@ export function SubscriptionForm({
                           label={option.label}
                         />
                         {index < BILLING_CYCLE_OPTIONS.length - 1 && (
-                          <Separator />
+                          <Separator className="opacity-40" />
                         )}
                       </Fragment>
                     ))}
@@ -395,7 +500,7 @@ export function SubscriptionForm({
             </View>
           </View>
 
-          <Separator className="my-2 opacity-50 mx-1" />
+          <Separator className="my-2 opacity-40 mx-1" />
 
           <TextField>
             <Text className="ml-1 font-semibold dark:text-white">메모</Text>

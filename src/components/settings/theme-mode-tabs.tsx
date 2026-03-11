@@ -1,10 +1,10 @@
+import { useAppSettings } from "@/lib/app-settings";
 import { hapticSelection } from "@/lib/haptics";
+import { isThemeMode, type ThemeMode } from "@/lib/theme-mode";
 import { Tabs } from "heroui-native";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-uniwind";
 import { View } from "react-native";
-import { Uniwind, useUniwind } from "uniwind";
-
-type ThemeMode = "light" | "dark" | "system";
+import { useUniwind } from "uniwind";
 
 const THEME_TABS: {
   value: ThemeMode;
@@ -15,17 +15,9 @@ const THEME_TABS: {
   { value: "system", Icon: MonitorIcon },
 ];
 
-const isThemeMode = (value: string): value is ThemeMode => {
-  return value === "light" || value === "dark" || value === "system";
-};
-
 export function ThemeModeTabs() {
-  const { theme, hasAdaptiveThemes } = useUniwind();
-  const activeTheme: ThemeMode = hasAdaptiveThemes
-    ? "system"
-    : theme === "dark"
-      ? "dark"
-      : "light";
+  const { themeMode, setThemeMode } = useAppSettings();
+  const { theme } = useUniwind();
   const isDarkMode = theme === "dark";
   const selectedIconColor = isDarkMode ? "#FFFFFF" : "#000000";
   const unselectedIconColor = isDarkMode ? "#9CA3AF" : "#6B7280";
@@ -33,10 +25,10 @@ export function ThemeModeTabs() {
   return (
     <View className="w-full">
       <Tabs
-        value={activeTheme}
+        value={themeMode}
         onValueChange={(nextValue) => {
           if (isThemeMode(nextValue)) {
-            Uniwind.setTheme(nextValue);
+            setThemeMode(nextValue);
           }
         }}
         variant="primary"
