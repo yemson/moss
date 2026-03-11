@@ -13,6 +13,7 @@ import {
 } from "@/lib/subscription-editor";
 import type { BillingCycle, Currency } from "@/lib/subscription-store";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Image as ExpoImage } from "expo-image";
 import {
   BottomSheet,
   Button,
@@ -22,7 +23,7 @@ import {
   TextArea,
   TextField,
 } from "heroui-native";
-import { Fragment, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -81,12 +82,13 @@ export function SubscriptionForm({
   onMemoChange,
 }: SubscriptionFormProps) {
   const scrollViewRef = useRef<ScrollView>(null);
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const billingDatePickerHeight = SPINNER_PICKER_HEIGHT;
   const billingDatePickerWidth = Math.min(
     screenWidth - 60,
     SPINNER_PICKER_WIDTH,
   );
+  const templateSelectMaxHeight = Math.min(screenHeight * 0.55, 420);
   const selectedCurrency = CURRENCY_OPTIONS.find(
     (option) => option.value === values.currency,
   );
@@ -127,6 +129,24 @@ export function SubscriptionForm({
     Keyboard.dismiss();
     hapticSelection();
   };
+
+  useEffect(() => {
+    if (mode !== "create" || !onTemplateChange) {
+      return;
+    }
+
+    const logoSources = SUBSCRIPTION_TEMPLATES.flatMap((template) =>
+      typeof template.logo === "number" ? [template.logo] : [],
+    );
+
+    if (logoSources.length === 0) {
+      return;
+    }
+
+    void Promise.all(
+      logoSources.map((logoSource) => ExpoImage.loadAsync(logoSource)),
+    );
+  }, [mode, onTemplateChange]);
 
   return (
     <KeyboardAvoidingView
@@ -180,53 +200,58 @@ export function SubscriptionForm({
                   <Select.Overlay className="bg-black/20 dark:bg-black/40" />
                   <Select.Content
                     presentation="popover"
-                    width="full"
+                    width="trigger"
                     placement="bottom"
                     align="end"
                   >
                     <Select.ListLabel className="mb-2">
                       템플릿 선택
                     </Select.ListLabel>
-                    <Select.Item value="__custom" label="직접 입력">
-                      <View className="flex-row items-center gap-3 flex-1">
-                        <View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-secondary">
-                          <Text className="font-semibold text-surface-foreground">
-                            +
-                          </Text>
-                        </View>
-                        <View className="flex-1">
-                          <Select.ItemLabel />
-                          <Select.ItemDescription>
-                            템플릿 없이 직접 입력
-                          </Select.ItemDescription>
-                        </View>
-                      </View>
-                      <Select.ItemIndicator />
-                    </Select.Item>
-                    <Separator className="my-1 opacity-40" />
-                    {SUBSCRIPTION_TEMPLATES.map((template, index) => (
-                      <Fragment key={template.key}>
-                        <Select.Item value={template.key} label={template.name}>
-                          <View className="flex-row items-center gap-3 flex-1">
-                            <SubscriptionServiceBadge
-                              name={template.name}
-                              templateKey={template.key}
-                              size="sm"
-                            />
-                            <View className="flex-1">
-                              <Select.ItemLabel />
-                              <Select.ItemDescription>
-                                {template.categoryLabel}
-                              </Select.ItemDescription>
-                            </View>
+                    <ScrollView
+                      style={{ maxHeight: templateSelectMaxHeight }}
+                      showsVerticalScrollIndicator
+                    >
+                      <Select.Item value="__custom" label="직접 입력">
+                        <View className="flex-row items-center gap-3 flex-1">
+                          <View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-secondary">
+                            <Text className="font-semibold text-surface-foreground">
+                              +
+                            </Text>
                           </View>
-                          <Select.ItemIndicator />
-                        </Select.Item>
-                        {index < SUBSCRIPTION_TEMPLATES.length - 1 && (
-                          <Separator className="my-1 opacity-40" />
-                        )}
-                      </Fragment>
-                    ))}
+                          <View className="flex-1">
+                            <Select.ItemLabel />
+                            <Select.ItemDescription>
+                              템플릿 없이 직접 입력
+                            </Select.ItemDescription>
+                          </View>
+                        </View>
+                        <Select.ItemIndicator />
+                      </Select.Item>
+                      <Separator className="my-1 opacity-40" />
+                      {SUBSCRIPTION_TEMPLATES.map((template, index) => (
+                        <Fragment key={template.key}>
+                          <Select.Item value={template.key} label={template.name}>
+                            <View className="flex-row items-center gap-3 flex-1">
+                              <SubscriptionServiceBadge
+                                name={template.name}
+                                templateKey={template.key}
+                                size="sm"
+                              />
+                              <View className="flex-1">
+                                <Select.ItemLabel />
+                                <Select.ItemDescription>
+                                  {template.categoryLabel}
+                                </Select.ItemDescription>
+                              </View>
+                            </View>
+                            <Select.ItemIndicator />
+                          </Select.Item>
+                          {index < SUBSCRIPTION_TEMPLATES.length - 1 && (
+                            <Separator className="my-1 opacity-40" />
+                          )}
+                        </Fragment>
+                      ))}
+                    </ScrollView>
                   </Select.Content>
                 </Select.Portal>
               </Select>

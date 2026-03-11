@@ -1,5 +1,6 @@
 import { getSubscriptionTemplate } from "@/lib/subscription-templates";
 import { clsx } from "clsx";
+import { Image } from "expo-image";
 import { Text, View } from "react-native";
 
 interface SubscriptionServiceBadgeProps {
@@ -23,19 +24,16 @@ function getSizeStyles(size: "sm" | "card" | "hero") {
       return {
         container: "h-10 w-10 rounded-xl",
         text: "text-base",
-        logo: 22,
       } as const;
     case "hero":
       return {
         container: "h-20 w-20 rounded-3xl",
         text: "text-4xl",
-        logo: 48,
       } as const;
     default:
       return {
         container: "h-13 w-13 rounded-2xl",
         text: "text-lg",
-        logo: 28,
       } as const;
   }
 }
@@ -48,18 +46,22 @@ export function SubscriptionServiceBadge({
   const template = getSubscriptionTemplate(templateKey);
   const styles = getSizeStyles(size);
 
-  if (template) {
-    const Logo = template.Logo;
-
+  if (template?.logo) {
     return (
       <View
         className={clsx(
           "items-center justify-center overflow-hidden",
           styles.container,
-          template.badgeClassName,
+          "bg-white",
         )}
       >
-        <Logo size={styles.logo} />
+        <Image
+          source={template.logo}
+          style={{ width: "100%", height: "100%" }}
+          contentFit={template.logoContentFit ?? "cover"}
+          cachePolicy="memory-disk"
+          transition={0}
+        />
       </View>
     );
   }
@@ -71,12 +73,7 @@ export function SubscriptionServiceBadge({
         styles.container,
       )}
     >
-      <Text
-        className={clsx(
-          "font-bold text-surface-foreground",
-          styles.text,
-        )}
-      >
+      <Text className={clsx("font-bold text-surface-foreground", styles.text)}>
         {getSubscriptionInitial(name)}
       </Text>
     </View>
