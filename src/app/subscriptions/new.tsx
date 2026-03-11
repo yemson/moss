@@ -26,7 +26,9 @@ export default function NewSubscriptionRoute() {
   const [templateKey, setTemplateKey] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("KRW");
-  const [billingDate, setBillingDate] = useState("");
+  const [billingDate, setBillingDate] = useState(() =>
+    formatDateToYmd(new Date()),
+  );
   const [trialEndDate, setTrialEndDate] = useState("");
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [memo, setMemo] = useState("");
