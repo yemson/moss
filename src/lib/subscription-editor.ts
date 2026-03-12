@@ -5,18 +5,13 @@ import type {
 
 export type SelectOption = { value: string; label: string };
 
-export const CURRENCY_OPTIONS: SelectOption[] = [
-  { value: "KRW", label: "KRW" },
-  { value: "USD", label: "USD" },
-];
-
 export const BILLING_CYCLE_OPTIONS: SelectOption[] = [
   { value: "monthly", label: "월간" },
   { value: "yearly", label: "연간" },
 ];
 
 export const isCurrency = (value: string): value is Currency => {
-  return value === "KRW" || value === "USD";
+  return value === "KRW";
 };
 
 export const isBillingCycle = (value: string): value is BillingCycle => {
@@ -25,40 +20,21 @@ export const isBillingCycle = (value: string): value is BillingCycle => {
 
 export const sanitizeAmountInput = (
   value: string,
-  currency: Currency,
+  _currency: Currency = "KRW",
 ): string => {
-  if (currency === "KRW") {
-    return value.replace(/[^\d]/g, "");
-  }
-
-  const normalized = value.replace(/[^\d.]/g, "");
-  const [integerPart = "", ...fractionParts] = normalized.split(".");
-  const fractionPart = fractionParts.join("").slice(0, 2);
-
-  if (normalized.startsWith(".")) {
-    return fractionPart.length > 0 ? `0.${fractionPart}` : "0.";
-  }
-
-  if (normalized.includes(".")) {
-    return `${integerPart}.${fractionPart}`;
-  }
-
-  return integerPart;
+  return value.replace(/[^\d]/g, "");
 };
 
 export const parseAmountInput = (
   value: string,
-  currency: Currency,
+  _currency: Currency = "KRW",
 ): number | null => {
-  const normalized = sanitizeAmountInput(value, currency);
-  if (normalized.length === 0 || normalized === ".") {
+  const normalized = sanitizeAmountInput(value, "KRW");
+  if (normalized.length === 0) {
     return null;
   }
 
-  const parsed =
-    currency === "KRW"
-      ? Number.parseInt(normalized, 10)
-      : Number.parseFloat(normalized);
+  const parsed = Number.parseInt(normalized, 10);
 
   return Number.isNaN(parsed) ? null : parsed;
 };

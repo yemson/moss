@@ -1,6 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
 
-export type Currency = "KRW" | "USD";
+export type Currency = "KRW";
 export type BillingCycle = "monthly" | "yearly";
 
 export interface Category {
@@ -19,7 +19,6 @@ export interface Subscription {
   currency: Currency;
   billingCycle: BillingCycle;
   billingDate: string;
-  trialEndDate: string | null;
   notifyDayBefore: boolean;
   categoryId: string;
   isActive: boolean;
@@ -46,10 +45,9 @@ export interface CreateSubscriptionInput {
   name: string;
   templateKey?: string | null;
   amount: number;
-  currency: Currency;
+  currency?: Currency;
   billingCycle: BillingCycle;
   billingDate: string;
-  trialEndDate?: string | null;
   notifyDayBefore?: boolean;
   categoryId: string;
   isActive?: boolean;
@@ -63,7 +61,6 @@ export interface UpdateSubscriptionInput {
   currency?: Currency;
   billingCycle?: BillingCycle;
   billingDate?: string;
-  trialEndDate?: string | null;
   notifyDayBefore?: boolean;
   categoryId?: string;
   isActive?: boolean;
@@ -75,21 +72,36 @@ export interface ListSubscriptionsOptions {
   isActive?: boolean;
 }
 
-export interface UsdKrwExchangeRate {
-  baseCode: "KRW";
-  targetCode: "USD";
-  conversionRate: number;
-  usdToKrwRate: number;
-  timeLastUpdateUnix: number;
-  timeLastUpdateUtc: string;
-  timeNextUpdateUnix: number;
-  timeNextUpdateUtc: string;
-  fetchedAt: string;
+export type PaymentLogStatus = "paid" | "scheduled";
+
+export interface SubscriptionPaymentLog {
+  id: string;
+  subscriptionId: string;
+  subscriptionName: string;
+  subscriptionTemplateKey: string | null;
+  subscriptionIsActive: boolean;
+  billingDate: string;
+  status: PaymentLogStatus;
+  amount: number;
+  currency: Currency;
+  categoryIdSnapshot: string;
+  categoryNameSnapshot: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListSubscriptionPaymentLogsOptions {
+  subscriptionId?: string;
+  status?: PaymentLogStatus;
+  dateFrom?: string;
+  dateTo?: string;
+  isActiveSubscription?: boolean;
+  limit?: number;
+  sortDirection?: "asc" | "desc";
 }
 
 const DATABASE_NAME = "subak.db";
-const KRW_USD_EXCHANGE_RATE_URL =
-  "https://v6.exchangerate-api.com/v6/e26bed7dc0ec5fb7dceb395a/pair/KRW/USD";
+const PAYMENT_LOG_FUTURE_MONTH_RANGE = 12;
 
 const PRESET_CATEGORIES: { id: string; name: string }[] = [
   { id: "cat_ott", name: "OTT" },
@@ -102,16 +114,10 @@ const PRESET_CATEGORIES: { id: string; name: string }[] = [
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 let initializePromise: Promise<void> | null = null;
+let paymentLogSyncPromise: Promise<void> | null = null;
 
 function nowIsoString(): string {
   return new Date().toISOString();
-}
-
-function toLocalDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function generateId(prefix: string): string {
@@ -120,11 +126,15 @@ function generateId(prefix: string): string {
 }
 
 function isCurrency(value: string): value is Currency {
-  return value === "KRW" || value === "USD";
+  return value === "KRW";
 }
 
 function isBillingCycle(value: string): value is BillingCycle {
   return value === "monthly" || value === "yearly";
+}
+
+function isPaymentLogStatus(value: string): value is PaymentLogStatus {
+  return value === "paid" || value === "scheduled";
 }
 
 function assertBillingDate(date: string): void {
@@ -156,26 +166,13 @@ function normalizeMemo(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function hasAtMostFractionDigits(value: number, maxFractionDigits: number): boolean {
-  const factor = 10 ** maxFractionDigits;
-  return Math.abs(value * factor - Math.round(value * factor)) < 1e-8;
-}
-
-function assertAmount(amount: number, currency: Currency): void {
+function assertAmount(amount: number, _currency: Currency = "KRW"): void {
   if (!Number.isFinite(amount) || amount < 0) {
     throw new Error("amount must be a non-negative number.");
   }
 
-  if (currency === "KRW") {
-    if (!Number.isInteger(amount)) {
-      throw new Error("KRW amount must be a non-negative integer.");
-    }
-
-    return;
-  }
-
-  if (!hasAtMostFractionDigits(amount, 2)) {
-    throw new Error("USD amount must have at most 2 decimal places.");
+  if (!Number.isInteger(amount)) {
+    throw new Error("KRW amount must be a non-negative integer.");
   }
 }
 
@@ -203,7 +200,6 @@ function mapSubscriptionRow(row: {
   currency: string;
   billingCycle: string;
   billingDate: string;
-  trialEndDate: string | null;
   notifyDayBefore: number;
   categoryId: string;
   isActive: number;
@@ -229,7 +225,6 @@ function mapSubscriptionRow(row: {
     currency: row.currency,
     billingCycle: row.billingCycle,
     billingDate: row.billingDate,
-    trialEndDate: row.trialEndDate,
     notifyDayBefore: row.notifyDayBefore === 1,
     categoryId: row.categoryId,
     isActive: row.isActive === 1,
@@ -238,11 +233,47 @@ function mapSubscriptionRow(row: {
     updatedAt: row.updatedAt,
     categoryName: row.categoryName,
     categoryIsPreset: row.categoryIsPreset === 1,
-    nextBillingDate: calculateNextBillingDate(
-      row.billingDate,
-      row.billingCycle,
-      row.trialEndDate,
-    ),
+    nextBillingDate: calculateNextBillingDate(row.billingDate, row.billingCycle),
+  };
+}
+
+function mapPaymentLogRow(row: {
+  id: string;
+  subscriptionId: string;
+  subscriptionName: string;
+  subscriptionTemplateKey: string | null;
+  subscriptionIsActive: number;
+  billingDate: string;
+  status: string;
+  amount: number;
+  currency: string;
+  categoryIdSnapshot: string;
+  categoryNameSnapshot: string;
+  createdAt: string;
+  updatedAt: string;
+}): SubscriptionPaymentLog {
+  if (!isCurrency(row.currency)) {
+    throw new Error(`Unexpected currency in payment log: ${row.currency}`);
+  }
+
+  if (!isPaymentLogStatus(row.status)) {
+    throw new Error(`Unexpected payment log status: ${row.status}`);
+  }
+
+  return {
+    id: row.id,
+    subscriptionId: row.subscriptionId,
+    subscriptionName: row.subscriptionName,
+    subscriptionTemplateKey: row.subscriptionTemplateKey,
+    subscriptionIsActive: row.subscriptionIsActive === 1,
+    billingDate: row.billingDate,
+    status: row.status,
+    amount: row.amount,
+    currency: row.currency,
+    categoryIdSnapshot: row.categoryIdSnapshot,
+    categoryNameSnapshot: row.categoryNameSnapshot,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -271,7 +302,7 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
       name TEXT NOT NULL,
       templateKey TEXT,
       amount REAL NOT NULL,
-      currency TEXT NOT NULL DEFAULT 'KRW' CHECK (currency IN ('KRW', 'USD')),
+      currency TEXT NOT NULL DEFAULT 'KRW' CHECK (currency IN ('KRW')),
       billingCycle TEXT NOT NULL CHECK (billingCycle IN ('monthly', 'yearly')),
       billingDate TEXT NOT NULL,
       trialEndDate TEXT,
@@ -290,17 +321,26 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_subscriptions_is_active
       ON subscriptions(isActive);
 
-    CREATE TABLE IF NOT EXISTS exchange_rates (
-      baseCode TEXT NOT NULL,
-      targetCode TEXT NOT NULL,
-      conversionRate REAL NOT NULL,
-      timeLastUpdateUnix INTEGER NOT NULL,
-      timeLastUpdateUtc TEXT NOT NULL,
-      timeNextUpdateUnix INTEGER NOT NULL,
-      timeNextUpdateUtc TEXT NOT NULL,
-      fetchedAt TEXT NOT NULL,
-      PRIMARY KEY (baseCode, targetCode)
+    CREATE TABLE IF NOT EXISTS subscription_payment_logs (
+      id TEXT PRIMARY KEY NOT NULL,
+      subscriptionId TEXT NOT NULL,
+      billingDate TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('paid', 'scheduled')),
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL CHECK (currency IN ('KRW')),
+      categoryIdSnapshot TEXT NOT NULL,
+      categoryNameSnapshot TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      UNIQUE (subscriptionId, billingDate),
+      FOREIGN KEY (subscriptionId) REFERENCES subscriptions(id) ON DELETE CASCADE
     );
+
+    CREATE INDEX IF NOT EXISTS idx_payment_logs_subscription_date
+      ON subscription_payment_logs(subscriptionId, billingDate);
+
+    CREATE INDEX IF NOT EXISTS idx_payment_logs_date_status
+      ON subscription_payment_logs(billingDate, status);
   `);
 }
 
@@ -369,6 +409,22 @@ async function seedPresetCategories(database: SQLiteDatabase): Promise<void> {
   }
 }
 
+async function removeUsdData(database: SQLiteDatabase): Promise<void> {
+  await database.execAsync(`
+    PRAGMA foreign_keys = ON;
+    DELETE FROM subscription_payment_logs WHERE currency = 'USD';
+    DELETE FROM subscriptions WHERE currency = 'USD';
+    DROP TABLE IF EXISTS exchange_rates;
+  `);
+}
+
+async function removeTrialSubscriptions(database: SQLiteDatabase): Promise<void> {
+  await database.execAsync(`
+    PRAGMA foreign_keys = ON;
+    DELETE FROM subscriptions WHERE trialEndDate IS NOT NULL;
+  `);
+}
+
 async function ensureInitialized(): Promise<void> {
   if (!initializePromise) {
     initializePromise = (async () => {
@@ -377,6 +433,8 @@ async function ensureInitialized(): Promise<void> {
       await migrateTemplateKeyColumn(database);
       await migrateTrialEndDateColumn(database);
       await migrateNotifyDayBeforeColumn(database);
+      await removeUsdData(database);
+      await removeTrialSubscriptions(database);
       await seedPresetCategories(database);
     })().catch((error) => {
       initializePromise = null;
@@ -428,32 +486,49 @@ function addCycle(date: Date, cycle: BillingCycle): Date {
   return new Date(Date.UTC(targetYear, month, Math.min(day, maxDay)));
 }
 
-export function isTrialActive(
-  trialEndDate: string | null,
-  baseDate: Date = new Date(),
-): boolean {
-  if (!trialEndDate) {
-    return false;
-  }
+function parseYmdToLocalDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
 
-  assertBillingDate(trialEndDate);
-  return trialEndDate >= toLocalDateString(baseDate);
+function getPaymentLogRangeEndDate(baseDate: Date = new Date()): Date {
+  return new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth() + PAYMENT_LOG_FUTURE_MONTH_RANGE + 1,
+    0,
+  );
+}
+
+function getTodayDateKey(baseDate: Date = new Date()): string {
+  return toLocalDateString(baseDate);
+}
+
+function getExpectedPaymentLogDates(
+  subscription: SubscriptionWithCategory,
+  baseDate: Date = new Date(),
+): string[] {
+  const rangeStartDate = parseYmdToLocalDate(subscription.billingDate);
+  const rangeEndDate = getPaymentLogRangeEndDate(baseDate);
+  const todayDateKey = getTodayDateKey(baseDate);
+
+  return listUpcomingBillingDates(
+    subscription.billingDate,
+    subscription.billingCycle,
+    rangeEndDate,
+    rangeStartDate,
+  ).filter(
+    (billingDate) => subscription.isActive || billingDate < todayDateKey,
+  );
 }
 
 export function listUpcomingBillingDates(
   billingDate: string,
   billingCycle: BillingCycle,
-  trialEndDate: string | null,
   rangeEndDate: Date,
   rangeStartDate: Date = new Date(),
 ): string[] {
   const endDate = toLocalDateString(rangeEndDate);
-  let nextBillingDate = calculateNextBillingDate(
-    billingDate,
-    billingCycle,
-    trialEndDate,
-    rangeStartDate,
-  );
+  let nextBillingDate = calculateNextBillingDate(billingDate, billingCycle, rangeStartDate);
   const billingDates: string[] = [];
 
   while (nextBillingDate <= endDate) {
@@ -469,14 +544,9 @@ export function listUpcomingBillingDates(
 export function calculateNextBillingDate(
   billingDate: string,
   billingCycle: BillingCycle,
-  trialEndDate: string | null = null,
   baseDate: Date = new Date(),
 ): string {
   assertBillingDate(billingDate);
-
-  if (trialEndDate) {
-    assertBillingDate(trialEndDate);
-  }
 
   const base = new Date(
     Date.UTC(
@@ -485,17 +555,6 @@ export function calculateNextBillingDate(
       baseDate.getDate(),
     ),
   );
-
-  if (trialEndDate) {
-    const [trialYear, trialMonth, trialDay] = trialEndDate.split("-").map(Number);
-    const normalizedTrialDate = new Date(
-      Date.UTC(trialYear, trialMonth - 1, trialDay),
-    );
-
-    if (normalizedTrialDate >= base) {
-      return trialEndDate;
-    }
-  }
 
   const [year, month, day] = billingDate.split("-").map(Number);
   const maxDay = getLastDayOfMonthUtc(year, month - 1);
@@ -510,182 +569,259 @@ export function calculateNextBillingDate(
   return toIsoDateString(nextDate);
 }
 
-function mapUsdKrwExchangeRateRow(row: {
-  baseCode: string;
-  targetCode: string;
-  conversionRate: number;
-  timeLastUpdateUnix: number;
-  timeLastUpdateUtc: string;
-  timeNextUpdateUnix: number;
-  timeNextUpdateUtc: string;
-  fetchedAt: string;
-}): UsdKrwExchangeRate {
-  if (row.baseCode !== "KRW" || row.targetCode !== "USD") {
-    throw new Error("Unexpected exchange rate pair in database.");
-  }
-
-  if (row.conversionRate <= 0) {
-    throw new Error("Invalid exchange rate value in database.");
-  }
-
-  return {
-    baseCode: "KRW",
-    targetCode: "USD",
-    conversionRate: row.conversionRate,
-    usdToKrwRate: 1 / row.conversionRate,
-    timeLastUpdateUnix: row.timeLastUpdateUnix,
-    timeLastUpdateUtc: row.timeLastUpdateUtc,
-    timeNextUpdateUnix: row.timeNextUpdateUnix,
-    timeNextUpdateUtc: row.timeNextUpdateUtc,
-    fetchedAt: row.fetchedAt,
-  };
+export async function initializeSubscriptionStore(): Promise<void> {
+  await ensureInitialized();
+  await syncSubscriptionPaymentLogs();
 }
 
-async function getStoredUsdKrwRateRow() {
+export async function listSubscriptionPaymentLogs(
+  options: ListSubscriptionPaymentLogsOptions = {},
+): Promise<SubscriptionPaymentLog[]> {
   await ensureInitialized();
   const database = await getDatabase();
 
-  return database.getFirstAsync<{
-    baseCode: string;
-    targetCode: string;
-    conversionRate: number;
-    timeLastUpdateUnix: number;
-    timeLastUpdateUtc: string;
-    timeNextUpdateUnix: number;
-    timeNextUpdateUtc: string;
-    fetchedAt: string;
+  const clauses: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (options.subscriptionId) {
+    clauses.push("l.subscriptionId = ?");
+    params.push(options.subscriptionId);
+  }
+
+  if (options.status) {
+    clauses.push("l.status = ?");
+    params.push(options.status);
+  }
+
+  if (options.dateFrom) {
+    clauses.push("l.billingDate >= ?");
+    params.push(options.dateFrom);
+  }
+
+  if (options.dateTo) {
+    clauses.push("l.billingDate <= ?");
+    params.push(options.dateTo);
+  }
+
+  if (typeof options.isActiveSubscription === "boolean") {
+    clauses.push("s.isActive = ?");
+    params.push(options.isActiveSubscription ? 1 : 0);
+  }
+
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+  const orderDirection = options.sortDirection === "asc" ? "ASC" : "DESC";
+  const limitClause =
+    typeof options.limit === "number" && options.limit > 0 ? "LIMIT ?" : "";
+
+  if (limitClause) {
+    params.push(options.limit!);
+  }
+
+  const rows = await database.getAllAsync<{
+    id: string;
+    subscriptionId: string;
+    subscriptionName: string;
+    subscriptionTemplateKey: string | null;
+    subscriptionIsActive: number;
+    billingDate: string;
+    status: string;
+    amount: number;
+    currency: string;
+    categoryIdSnapshot: string;
+    categoryNameSnapshot: string;
+    createdAt: string;
+    updatedAt: string;
   }>(
     `
       SELECT
-        baseCode,
-        targetCode,
-        conversionRate,
-        timeLastUpdateUnix,
-        timeLastUpdateUtc,
-        timeNextUpdateUnix,
-        timeNextUpdateUtc,
-        fetchedAt
-      FROM exchange_rates
-      WHERE baseCode = 'KRW' AND targetCode = 'USD'
-      LIMIT 1
+        l.id,
+        l.subscriptionId,
+        s.name AS subscriptionName,
+        s.templateKey AS subscriptionTemplateKey,
+        s.isActive AS subscriptionIsActive,
+        l.billingDate,
+        l.status,
+        l.amount,
+        l.currency,
+        l.categoryIdSnapshot,
+        l.categoryNameSnapshot,
+        l.createdAt,
+        l.updatedAt
+      FROM subscription_payment_logs l
+      INNER JOIN subscriptions s ON s.id = l.subscriptionId
+      ${whereClause}
+      ORDER BY l.billingDate ${orderDirection}, l.createdAt ${orderDirection}
+      ${limitClause}
     `,
+    params,
   );
+
+  return rows.map(mapPaymentLogRow);
 }
 
-async function storeUsdKrwRate(rate: Omit<UsdKrwExchangeRate, "usdToKrwRate">) {
-  await ensureInitialized();
-  const database = await getDatabase();
+async function upsertExpectedPaymentLog(
+  database: SQLiteDatabase,
+  subscription: SubscriptionWithCategory,
+  billingDate: string,
+  status: PaymentLogStatus,
+  existingLog: {
+    id: string;
+    status: string;
+    amount: number;
+    currency: string;
+    categoryIdSnapshot: string;
+    categoryNameSnapshot: string;
+  } | null,
+  now: string,
+) {
+  if (existingLog && existingLog.status === "paid") {
+    return;
+  }
+
+  if (!existingLog) {
+    await database.runAsync(
+      `
+        INSERT INTO subscription_payment_logs (
+          id,
+          subscriptionId,
+          billingDate,
+          status,
+          amount,
+          currency,
+          categoryIdSnapshot,
+          categoryNameSnapshot,
+          createdAt,
+          updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        generateId("paylog"),
+        subscription.id,
+        billingDate,
+        status,
+        subscription.amount,
+        subscription.currency,
+        subscription.categoryId,
+        subscription.categoryName,
+        now,
+        now,
+      ],
+    );
+    return;
+  }
 
   await database.runAsync(
     `
-      INSERT OR REPLACE INTO exchange_rates (
-        baseCode,
-        targetCode,
-        conversionRate,
-        timeLastUpdateUnix,
-        timeLastUpdateUtc,
-        timeNextUpdateUnix,
-        timeNextUpdateUtc,
-        fetchedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      UPDATE subscription_payment_logs
+      SET
+        status = ?,
+        amount = ?,
+        currency = ?,
+        categoryIdSnapshot = ?,
+        categoryNameSnapshot = ?,
+        updatedAt = ?
+      WHERE id = ?
     `,
     [
-      rate.baseCode,
-      rate.targetCode,
-      rate.conversionRate,
-      rate.timeLastUpdateUnix,
-      rate.timeLastUpdateUtc,
-      rate.timeNextUpdateUnix,
-      rate.timeNextUpdateUtc,
-      rate.fetchedAt,
+      status,
+      subscription.amount,
+      subscription.currency,
+      subscription.categoryId,
+      subscription.categoryName,
+      now,
+      existingLog.id,
     ],
   );
 }
 
-async function fetchUsdKrwRateFromApi() {
-  const response = await fetch(KRW_USD_EXCHANGE_RATE_URL);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch exchange rate. HTTP ${response.status}`);
-  }
-
-  const payload = (await response.json()) as {
-    result?: unknown;
-    base_code?: unknown;
-    target_code?: unknown;
-    conversion_rate?: unknown;
-    time_last_update_unix?: unknown;
-    time_last_update_utc?: unknown;
-    time_next_update_unix?: unknown;
-    time_next_update_utc?: unknown;
-  };
-
-  if (
-    payload.result !== "success" ||
-    payload.base_code !== "KRW" ||
-    payload.target_code !== "USD" ||
-    typeof payload.conversion_rate !== "number" ||
-    payload.conversion_rate <= 0 ||
-    typeof payload.time_last_update_unix !== "number" ||
-    typeof payload.time_last_update_utc !== "string" ||
-    typeof payload.time_next_update_unix !== "number" ||
-    typeof payload.time_next_update_utc !== "string"
-  ) {
-    throw new Error("Received an invalid exchange rate response.");
-  }
-
-  return {
-    baseCode: "KRW" as const,
-    targetCode: "USD" as const,
-    conversionRate: payload.conversion_rate,
-    timeLastUpdateUnix: payload.time_last_update_unix,
-    timeLastUpdateUtc: payload.time_last_update_utc,
-    timeNextUpdateUnix: payload.time_next_update_unix,
-    timeNextUpdateUtc: payload.time_next_update_utc,
-    fetchedAt: nowIsoString(),
-  };
-}
-
-export async function initializeSubscriptionStore(): Promise<void> {
+async function syncSubscriptionPaymentLogsInternal(
+  baseDate: Date = new Date(),
+): Promise<void> {
   await ensureInitialized();
+  const database = await getDatabase();
+  const subscriptions = await listSubscriptions();
+  const todayDateKey = getTodayDateKey(baseDate);
+  const now = nowIsoString();
+
+  await database.runAsync(
+    `
+      UPDATE subscription_payment_logs
+      SET status = 'paid', updatedAt = ?
+      WHERE status = 'scheduled' AND billingDate < ?
+    `,
+    [now, todayDateKey],
+  );
+
+  for (const subscription of subscriptions) {
+    const existingLogs = await database.getAllAsync<{
+      id: string;
+      billingDate: string;
+      status: string;
+      amount: number;
+      currency: string;
+      categoryIdSnapshot: string;
+      categoryNameSnapshot: string;
+    }>(
+      `
+        SELECT
+          id,
+          billingDate,
+          status,
+          amount,
+          currency,
+          categoryIdSnapshot,
+          categoryNameSnapshot
+        FROM subscription_payment_logs
+        WHERE subscriptionId = ?
+      `,
+      [subscription.id],
+    );
+
+    const existingByDate = new Map(
+      existingLogs.map((log) => [log.billingDate, log]),
+    );
+    const expectedDates = getExpectedPaymentLogDates(subscription, baseDate);
+    const expectedDateSet = new Set(expectedDates);
+
+    for (const billingDate of expectedDates) {
+      const status: PaymentLogStatus =
+        billingDate < todayDateKey ? "paid" : "scheduled";
+      await upsertExpectedPaymentLog(
+        database,
+        subscription,
+        billingDate,
+        status,
+        existingByDate.get(billingDate) ?? null,
+        now,
+      );
+    }
+
+    for (const existingLog of existingLogs) {
+      if (
+        existingLog.status === "scheduled" &&
+        !expectedDateSet.has(existingLog.billingDate)
+      ) {
+        await database.runAsync(
+          `DELETE FROM subscription_payment_logs WHERE id = ?`,
+          [existingLog.id],
+        );
+      }
+    }
+  }
 }
 
-export async function getStoredUsdKrwRate(): Promise<UsdKrwExchangeRate | null> {
-  const storedRate = await getStoredUsdKrwRateRow();
-  return storedRate ? mapUsdKrwExchangeRateRow(storedRate) : null;
-}
-
-function hasFetchedOnSameLocalDate(
-  fetchedAt: string,
-  now: Date = new Date(),
-): boolean {
-  const fetchedAtDate = new Date(fetchedAt);
-
-  if (Number.isNaN(fetchedAtDate.getTime())) {
-    return false;
+export async function syncSubscriptionPaymentLogs(
+  baseDate: Date = new Date(),
+): Promise<void> {
+  if (!paymentLogSyncPromise) {
+    paymentLogSyncPromise = syncSubscriptionPaymentLogsInternal(baseDate).finally(
+      () => {
+        paymentLogSyncPromise = null;
+      },
+    );
   }
 
-  return toLocalDateKey(fetchedAtDate) === toLocalDateKey(now);
-}
-
-export async function getUsdKrwRate(): Promise<UsdKrwExchangeRate | null> {
-  const storedRate = await getStoredUsdKrwRate();
-
-  if (storedRate && hasFetchedOnSameLocalDate(storedRate.fetchedAt)) {
-    return storedRate;
-  }
-
-  try {
-    const fetchedRate = await fetchUsdKrwRateFromApi();
-    await storeUsdKrwRate(fetchedRate);
-    return {
-      ...fetchedRate,
-      usdToKrwRate: 1 / fetchedRate.conversionRate,
-    };
-  } catch (error) {
-    console.error("Failed to refresh USD/KRW exchange rate:", error);
-    return storedRate;
-  }
+  return paymentLogSyncPromise;
 }
 
 export async function listCategories(): Promise<Category[]> {
@@ -810,6 +946,8 @@ export async function updateCategory(
     throw new Error("Failed to update category.");
   }
 
+  await syncSubscriptionPaymentLogs();
+
   return mapCategoryRow(row);
 }
 
@@ -859,21 +997,13 @@ export async function createSubscription(
     throw new Error("Subscription name is required.");
   }
 
-  if (!isCurrency(input.currency)) {
-    throw new Error("currency must be KRW or USD.");
-  }
-
-  assertAmount(input.amount, input.currency);
+  assertAmount(input.amount);
 
   if (!isBillingCycle(input.billingCycle)) {
     throw new Error("billingCycle must be monthly or yearly.");
   }
 
   assertBillingDate(input.billingDate);
-
-  if (input.trialEndDate != null) {
-    assertBillingDate(input.trialEndDate);
-  }
 
   await ensureInitialized();
   const database = await getDatabase();
@@ -888,27 +1018,24 @@ export async function createSubscription(
         name,
         templateKey,
         amount,
-        currency,
         billingCycle,
         billingDate,
-        trialEndDate,
         notifyDayBefore,
         categoryId,
         isActive,
         memo,
         createdAt,
         updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
       trimmedName,
       input.templateKey ?? null,
       input.amount,
-      input.currency,
+      "KRW",
       input.billingCycle,
       input.billingDate,
-      input.trialEndDate ?? null,
       input.notifyDayBefore === true ? 1 : 0,
       input.categoryId,
       input.isActive === false ? 0 : 1,
@@ -922,6 +1049,8 @@ export async function createSubscription(
   if (!created) {
     throw new Error("Failed to create subscription.");
   }
+
+  await syncSubscriptionPaymentLogs();
 
   return created;
 }
@@ -955,7 +1084,6 @@ export async function listSubscriptions(
     currency: string;
     billingCycle: string;
     billingDate: string;
-    trialEndDate: string | null;
     notifyDayBefore: number;
     categoryId: string;
     isActive: number;
@@ -974,7 +1102,6 @@ export async function listSubscriptions(
         s.currency,
         s.billingCycle,
         s.billingDate,
-        s.trialEndDate,
         s.notifyDayBefore,
         s.categoryId,
         s.isActive,
@@ -1008,7 +1135,6 @@ export async function getSubscriptionById(
     currency: string;
     billingCycle: string;
     billingDate: string;
-    trialEndDate: string | null;
     notifyDayBefore: number;
     categoryId: string;
     isActive: number;
@@ -1027,7 +1153,6 @@ export async function getSubscriptionById(
         s.currency,
         s.billingCycle,
         s.billingDate,
-        s.trialEndDate,
         s.notifyDayBefore,
         s.categoryId,
         s.isActive,
@@ -1053,17 +1178,6 @@ export async function updateSubscription(
 ): Promise<SubscriptionWithCategory> {
   await ensureInitialized();
   const database = await getDatabase();
-  let amountCurrency = input.currency;
-
-  if (input.amount !== undefined && amountCurrency === undefined) {
-    const existing = await getSubscriptionById(subscriptionId);
-    if (!existing) {
-      throw new Error("Subscription not found.");
-    }
-
-    amountCurrency = existing.currency;
-  }
-
   const sets: string[] = [];
   const params: (string | number | null)[] = [];
 
@@ -1082,14 +1196,14 @@ export async function updateSubscription(
   }
 
   if (input.amount !== undefined) {
-    assertAmount(input.amount, amountCurrency ?? "KRW");
+    assertAmount(input.amount);
     sets.push("amount = ?");
     params.push(input.amount);
   }
 
   if (input.currency !== undefined) {
     if (!isCurrency(input.currency)) {
-      throw new Error("currency must be KRW or USD.");
+      throw new Error("currency must be KRW.");
     }
     sets.push("currency = ?");
     params.push(input.currency);
@@ -1107,15 +1221,6 @@ export async function updateSubscription(
     assertBillingDate(input.billingDate);
     sets.push("billingDate = ?");
     params.push(input.billingDate);
-  }
-
-  if (input.trialEndDate !== undefined) {
-    if (input.trialEndDate !== null) {
-      assertBillingDate(input.trialEndDate);
-    }
-
-    sets.push("trialEndDate = ?");
-    params.push(input.trialEndDate);
   }
 
   if (input.notifyDayBefore !== undefined) {
@@ -1168,12 +1273,19 @@ export async function updateSubscription(
     throw new Error("Failed to load updated subscription.");
   }
 
+  await syncSubscriptionPaymentLogs();
+
   return updated;
 }
 
 export async function deleteSubscription(subscriptionId: string): Promise<void> {
   await ensureInitialized();
   const database = await getDatabase();
+
+  await database.runAsync(
+    `DELETE FROM subscription_payment_logs WHERE subscriptionId = ?`,
+    [subscriptionId],
+  );
 
   const result = await database.runAsync(
     `DELETE FROM subscriptions WHERE id = ?`,

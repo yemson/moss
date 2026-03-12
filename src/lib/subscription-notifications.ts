@@ -137,7 +137,6 @@ function buildReminderGroups(
     const upcomingBillingDates = listUpcomingBillingDates(
       subscription.billingDate,
       subscription.billingCycle,
-      subscription.trialEndDate,
       rangeEndDate,
       now,
     );

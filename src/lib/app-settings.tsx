@@ -1,9 +1,4 @@
 import {
-  DEFAULT_CURRENCY_DISPLAY_MODE,
-  isCurrencyDisplayMode,
-  type CurrencyDisplayMode,
-} from "@/lib/currency-display";
-import {
   DEFAULT_THEME_MODE,
   isThemeMode,
   type ThemeMode,
@@ -21,18 +16,15 @@ import { Uniwind } from "uniwind";
 const APP_SETTINGS_STORAGE_KEY = "subak.settings";
 
 export interface AppSettings {
-  currencyDisplayMode: CurrencyDisplayMode;
   themeMode: ThemeMode;
   notificationsEnabled: boolean;
   notificationsPermissionPrompted: boolean;
 }
 
 interface AppSettingsContextValue {
-  currencyDisplayMode: CurrencyDisplayMode;
   themeMode: ThemeMode;
   notificationsEnabled: boolean;
   notificationsPermissionPrompted: boolean;
-  setCurrencyDisplayMode: (nextMode: CurrencyDisplayMode) => void;
   setThemeMode: (nextMode: ThemeMode) => void;
   setNotificationsEnabled: (nextEnabled: boolean) => void;
   setNotificationsPermissionPrompted: (nextPrompted: boolean) => void;
@@ -41,7 +33,6 @@ interface AppSettingsContextValue {
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  currencyDisplayMode: DEFAULT_CURRENCY_DISPLAY_MODE,
   themeMode: DEFAULT_THEME_MODE,
   notificationsEnabled: false,
   notificationsPermissionPrompted: false,
@@ -54,18 +45,12 @@ function parseAppSettings(rawSettings: string | null): AppSettings {
 
   try {
     const parsedSettings = JSON.parse(rawSettings) as {
-      currencyDisplayMode?: unknown;
       themeMode?: unknown;
       notificationsEnabled?: unknown;
       notificationsPermissionPrompted?: unknown;
     };
 
     return {
-      currencyDisplayMode:
-        typeof parsedSettings.currencyDisplayMode === "string" &&
-        isCurrencyDisplayMode(parsedSettings.currencyDisplayMode)
-          ? parsedSettings.currencyDisplayMode
-          : DEFAULT_CURRENCY_DISPLAY_MODE,
       themeMode:
         typeof parsedSettings.themeMode === "string" &&
         isThemeMode(parsedSettings.themeMode)
@@ -118,21 +103,6 @@ export function AppSettingsProvider({
     });
   }, []);
 
-  const setCurrencyDisplayMode = useCallback(
-    (nextMode: CurrencyDisplayMode) => {
-      setSettings((currentSettings) => {
-        const nextSettings = {
-          ...currentSettings,
-          currencyDisplayMode: nextMode,
-        };
-
-        persistSettings(nextSettings);
-        return nextSettings;
-      });
-    },
-    [persistSettings],
-  );
-
   const setThemeMode = useCallback(
     (nextMode: ThemeMode) => {
       Uniwind.setTheme(nextMode);
@@ -183,11 +153,9 @@ export function AppSettingsProvider({
   return (
     <AppSettingsContext.Provider
       value={{
-        currencyDisplayMode: settings.currencyDisplayMode,
         themeMode: settings.themeMode,
         notificationsEnabled: settings.notificationsEnabled,
         notificationsPermissionPrompted: settings.notificationsPermissionPrompted,
-        setCurrencyDisplayMode,
         setThemeMode,
         setNotificationsEnabled,
         setNotificationsPermissionPrompted,

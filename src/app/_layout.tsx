@@ -12,7 +12,6 @@ import {
   syncSubscriptionNotifications,
 } from "@/lib/subscription-notifications";
 import {
-  getUsdKrwRate,
   initializeSubscriptionStore,
 } from "@/lib/subscription-store";
 import {
@@ -26,7 +25,6 @@ import { Stack, useRouter } from "expo-router";
 import type { HeroUINativeConfig } from "heroui-native";
 import { HeroUINativeProvider } from "heroui-native";
 import { useEffect, useMemo, useState } from "react";
-import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind, useUniwind } from "uniwind";
 import "../global.css";
@@ -93,9 +91,6 @@ export default function TabLayout() {
         await initializeNotificationsOnAppStart(loadedSettings);
       await persistAppSettings(nextSettings);
       await syncSubscriptionNotifications(nextSettings.notificationsEnabled);
-      void getUsdKrwRate().catch((error) => {
-        console.error("Failed to warm USD/KRW exchange rate:", error);
-      });
       Uniwind.setTheme(nextSettings.themeMode);
       const elapsedTime = Date.now() - startedAt;
       const remainingTime = Math.max(
@@ -119,28 +114,6 @@ export default function TabLayout() {
 
     return () => {
       isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let currentAppState = AppState.currentState;
-
-    const subscription = AppState.addEventListener("change", (nextAppState) => {
-      const isReturningToForeground =
-        /inactive|background/.test(currentAppState) && nextAppState === "active";
-      currentAppState = nextAppState;
-
-      if (!isReturningToForeground) {
-        return;
-      }
-
-      void getUsdKrwRate().catch((error) => {
-        console.error("Failed to refresh USD/KRW exchange rate:", error);
-      });
-    });
-
-    return () => {
-      subscription.remove();
     };
   }, []);
 

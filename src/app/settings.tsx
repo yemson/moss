@@ -1,5 +1,4 @@
 import { useAppSettings } from "@/lib/app-settings";
-import { CurrencyDisplayTabs } from "@/components/settings/currency-display-tabs";
 import { ThemeModeTabs } from "@/components/settings/theme-mode-tabs";
 import { hapticSelection } from "@/lib/haptics";
 import {
@@ -12,7 +11,6 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { Stack, useRouter } from "expo-router";
 import { Button, ListGroup, Separator, Switch } from "heroui-native";
 import {
-  BanknoteIcon,
   BellIcon,
   FlaskConicalIcon,
   HandIcon,
@@ -128,12 +126,6 @@ export default function SettingsRoute() {
             title: "화면 모드",
             icon: SunIcon,
             suffix: <ThemeModeTabs />,
-          },
-          {
-            id: "currency-display",
-            title: "금액 표기",
-            icon: BanknoteIcon,
-            suffix: <CurrencyDisplayTabs />,
           },
         ],
       },

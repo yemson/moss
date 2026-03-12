@@ -7,7 +7,6 @@ import {
   formatDateToYmd,
   parseAmountInput,
   sanitizeAmountInput,
-  ymdToDate,
   type SelectOption,
 } from "@/lib/subscription-editor";
 import {
@@ -15,7 +14,6 @@ import {
   listCategories,
   type Category,
   type BillingCycle,
-  type Currency,
 } from "@/lib/subscription-store";
 import { Stack, useRouter } from "expo-router";
 import { ChevronLeftIcon, XIcon } from "lucide-uniwind";
@@ -36,22 +34,16 @@ export default function NewSubscriptionRoute() {
   );
   const [templateKey, setTemplateKey] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState<Currency>("KRW");
   const [billingDate, setBillingDate] = useState(() =>
     formatDateToYmd(new Date()),
   );
-  const [trialEndDate, setTrialEndDate] = useState("");
   const [notifyDayBefore, setNotifyDayBefore] = useState(false);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [memo, setMemo] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [isTrialEnabled, setIsTrialEnabled] = useState(false);
   const [billingDateValue, setBillingDateValue] = useState(new Date());
   const [billingDateDraft, setBillingDateDraft] = useState(new Date());
-  const [trialEndDateValue, setTrialEndDateValue] = useState(new Date());
-  const [trialEndDateDraft, setTrialEndDateDraft] = useState(new Date());
   const [isBillingDateSheetOpen, setIsBillingDateSheetOpen] = useState(false);
-  const [isTrialEndDateSheetOpen, setIsTrialEndDateSheetOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [categories, setCategories] = useState<Category[] | null>(null);
 
@@ -97,33 +89,17 @@ export default function NewSubscriptionRoute() {
     setIsBillingDateSheetOpen(false);
   };
 
-  const handleTrialEndDateSheetOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) {
-      Keyboard.dismiss();
-      setTrialEndDateDraft(trialEndDateValue);
-    }
-
-    setIsTrialEndDateSheetOpen(nextOpen);
-  };
-
-  const handleApplyTrialEndDate = () => {
-    setTrialEndDateValue(trialEndDateDraft);
-    setTrialEndDate(formatDateToYmd(trialEndDateDraft));
-    setIsTrialEndDateSheetOpen(false);
-  };
-
   const handleSavePress = async () => {
     if (isSaving) {
       return;
     }
 
-    const parsedAmount = parseAmountInput(amount, currency);
-    const effectiveBillingDate = isTrialEnabled ? trialEndDate : billingDate;
+    const parsedAmount = parseAmountInput(amount);
     if (
       !templateSelection ||
       !serviceName.trim() ||
       parsedAmount == null ||
-      !effectiveBillingDate.trim() ||
+      !billingDate.trim() ||
       !categoryId
     ) {
       return;
@@ -137,10 +113,8 @@ export default function NewSubscriptionRoute() {
         name: serviceName.trim(),
         templateKey,
         amount: parsedAmount,
-        currency,
         billingCycle,
-        billingDate: effectiveBillingDate,
-        trialEndDate: isTrialEnabled ? trialEndDate : null,
+        billingDate,
         notifyDayBefore,
         categoryId,
         memo: memo.trim() || null,
@@ -185,36 +159,7 @@ export default function NewSubscriptionRoute() {
   };
 
   const handleAmountChange = (nextAmount: string) => {
-    setAmount(sanitizeAmountInput(nextAmount, currency));
-  };
-
-  const handleCurrencyChange = (nextCurrency: Currency) => {
-    setCurrency(nextCurrency);
-    setAmount((currentAmount) =>
-      sanitizeAmountInput(currentAmount, nextCurrency),
-    );
-  };
-
-  const handleTrialEnabledChange = (nextEnabled: boolean) => {
-    Keyboard.dismiss();
-    setIsTrialEnabled(nextEnabled);
-
-    if (!nextEnabled) {
-      setIsTrialEndDateSheetOpen(false);
-      setTrialEndDate("");
-      return;
-    }
-
-    const nextValue = trialEndDate
-      ? ymdToDate(trialEndDate)
-      : billingDate
-        ? ymdToDate(billingDate)
-        : new Date();
-    const nextDate = formatDateToYmd(nextValue);
-
-    setTrialEndDateValue(nextValue);
-    setTrialEndDateDraft(nextValue);
-    setTrialEndDate(nextDate);
+    setAmount(sanitizeAmountInput(nextAmount));
   };
 
   const handleStepChange = (nextStep: number) => {
@@ -302,35 +247,25 @@ export default function NewSubscriptionRoute() {
           templateKey,
           serviceName,
           amount,
-          currency,
           billingDate,
-          trialEndDate,
           notifyDayBefore,
           notificationsEnabled,
           billingCycle,
           memo,
           categoryId,
-          isTrialEnabled,
           billingDateDraft,
           isBillingDateSheetOpen,
-          trialEndDateDraft,
-          isTrialEndDateSheetOpen,
         }}
         categoryOptions={categoryOptions}
         onStepChange={handleStepChange}
         onTemplateSelectionChange={handleTemplateSelectionChange}
         onServiceNameChange={setServiceName}
         onAmountChange={handleAmountChange}
-        onCurrencyChange={handleCurrencyChange}
         onBillingCycleChange={setBillingCycle}
-        onTrialEnabledChange={handleTrialEnabledChange}
         onNotifyDayBeforeChange={setNotifyDayBefore}
         onBillingDateSheetOpenChange={handleBillingDateSheetOpenChange}
         onBillingDateDraftChange={setBillingDateDraft}
         onBillingDateApply={handleApplyBillingDate}
-        onTrialEndDateSheetOpenChange={handleTrialEndDateSheetOpenChange}
-        onTrialEndDateDraftChange={setTrialEndDateDraft}
-        onTrialEndDateApply={handleApplyTrialEndDate}
         onCategoryChange={setCategoryId}
         onMemoChange={setMemo}
         onSubmit={() => {

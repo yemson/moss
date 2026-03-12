@@ -1,6 +1,9 @@
 import { useAppSettings } from "@/lib/app-settings";
+import { SubscriptionStatisticsSummaryTile } from "@/components/subscriptions/subscription-statistics-summary-tile";
+import { SubscriptionStatisticsTrendChart } from "@/components/subscriptions/subscription-statistics-trend-chart";
 import { hapticImpactLight } from "@/lib/haptics";
 import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
+import { getSubscriptionStatisticsDetail } from "@/lib/subscription-statistics";
 import { resolveId } from "@/lib/subscription-editor";
 import {
   formatAmount,
@@ -10,11 +13,11 @@ import {
 import {
   deleteSubscription,
   getSubscriptionById,
-  getUsdKrwRate,
-  isTrialActive,
+  listSubscriptionPaymentLogs,
+  syncSubscriptionPaymentLogs,
   type BillingCycle,
+  type SubscriptionPaymentLog,
   type SubscriptionWithCategory,
-  type UsdKrwExchangeRate,
 } from "@/lib/subscription-store";
 import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { useFocusEffect } from "@react-navigation/native";
@@ -69,17 +72,73 @@ function DetailInfoRow({ icon, label, value }: DetailInfoRowProps) {
   );
 }
 
+function DetailSectionCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card
+      variant="default"
+      className="rounded-[30px] p-5 shadow-lg shadow-neutral-300/10 dark:shadow-none"
+    >
+      <Card.Body className="gap-4 p-0">
+        <View className="gap-1">
+          <Card.Title className="text-lg font-semibold text-black dark:text-white">
+            {title}
+          </Card.Title>
+          {description ? (
+            <Card.Description className="text-sm text-foreground/50">
+              {description}
+            </Card.Description>
+          ) : null}
+        </View>
+        {children}
+      </Card.Body>
+    </Card>
+  );
+}
+
+function PaymentLogRow({
+  paymentLog,
+  amountLabel,
+  statusLabel,
+}: {
+  paymentLog: SubscriptionPaymentLog;
+  amountLabel: string;
+  statusLabel: string;
+}) {
+  return (
+    <View className="flex-row items-center justify-between gap-3">
+      <View className="min-w-0 flex-1 gap-0.5">
+        <Text className="font-medium text-black dark:text-white">
+          {formatYmd(paymentLog.billingDate)}
+        </Text>
+        <Text className="text-xs text-foreground/45">{statusLabel}</Text>
+      </View>
+      <Text
+        className="text-sm font-semibold text-black dark:text-white"
+        style={{ fontVariant: ["tabular-nums"] }}
+      >
+        {amountLabel}
+      </Text>
+    </View>
+  );
+}
+
 export default function SubscriptionDetailRoute() {
   const router = useRouter();
-  const { currencyDisplayMode, notificationsEnabled } = useAppSettings();
+  const { notificationsEnabled } = useAppSettings();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const subscriptionId = resolveId(params.id);
   const [subscription, setSubscription] = useState<
     SubscriptionWithCategory | null | undefined
   >(undefined);
-  const [exchangeRate, setExchangeRate] = useState<UsdKrwExchangeRate | null>(
-    null,
-  );
+  const [paymentLogs, setPaymentLogs] = useState<SubscriptionPaymentLog[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -89,15 +148,20 @@ export default function SubscriptionDetailRoute() {
 
       void (async () => {
         try {
-          const [nextSubscription, nextExchangeRate] = await Promise.all([
+          await syncSubscriptionPaymentLogs();
+          const [nextSubscription, nextPaymentLogs] = await Promise.all([
             getSubscriptionById(subscriptionId),
-            getUsdKrwRate(),
+            listSubscriptionPaymentLogs({
+              subscriptionId,
+              sortDirection: "desc",
+            }),
           ]);
           setSubscription(nextSubscription);
-          setExchangeRate(nextExchangeRate);
+          setPaymentLogs(nextPaymentLogs);
         } catch (error) {
           console.error("Failed to load subscription detail:", error);
           setSubscription(null);
+          setPaymentLogs([]);
         }
       })();
     }, [subscriptionId]),
@@ -131,21 +195,11 @@ export default function SubscriptionDetailRoute() {
   }, [notificationsEnabled, router, subscription]);
 
   const amountParts = subscription
-    ? formatAmountParts(
-        subscription.amount,
-        subscription.currency,
-        currencyDisplayMode,
-      )
+    ? formatAmountParts(subscription.amount)
     : null;
-  const convertedAmountLabel =
-    subscription?.currency === "USD" && exchangeRate
-      ? formatAmount(
-          Math.round(subscription.amount * exchangeRate.usdToKrwRate),
-          "KRW",
-          currencyDisplayMode,
-        )
-      : null;
-  const isInTrial = subscription ? isTrialActive(subscription.trialEndDate) : false;
+  const statistics = subscription
+    ? getSubscriptionStatisticsDetail(subscription, paymentLogs)
+    : null;
 
   return (
     <>
@@ -207,88 +261,161 @@ export default function SubscriptionDetailRoute() {
           )}
 
           {subscription && amountParts && (
-            <Card
-              variant="default"
-              className="overflow-hidden rounded-[30px] p-5 shadow-lg shadow-neutral-300/10 dark:shadow-none"
-            >
-              <Card.Body className="items-center gap-4 px-1 py-2">
-                <SubscriptionServiceBadge
-                  name={subscription.name}
-                  templateKey={subscription.templateKey}
-                  size="hero"
-                />
+            <View className="gap-4">
+              <Card
+                variant="default"
+                className="overflow-hidden rounded-[30px] p-5 shadow-lg shadow-neutral-300/10 dark:shadow-none"
+              >
+                <Card.Body className="items-center gap-4 px-1 py-2">
+                  <SubscriptionServiceBadge
+                    name={subscription.name}
+                    templateKey={subscription.templateKey}
+                    size="hero"
+                  />
 
-                <View className="items-center gap-1">
-                  <Card.Title className="text-2xl font-semibold text-black dark:text-white">
-                    {subscription.name}
-                  </Card.Title>
-                  <Card.Description className="text-base text-foreground/45">
-                    {subscription.categoryName}
-                  </Card.Description>
-                  {isInTrial && (
-                    <View className="mt-2 rounded-full bg-surface-secondary px-3 py-1">
-                      <Text className="text-[12px] font-semibold text-foreground/65">
-                        무료 체험 중
-                      </Text>
-                    </View>
-                  )}
-                </View>
+                  <View className="items-center gap-1">
+                    <Card.Title className="text-2xl font-semibold text-black dark:text-white">
+                      {subscription.name}
+                    </Card.Title>
+                    <Card.Description className="text-base text-foreground/45">
+                      {subscription.categoryName}
+                    </Card.Description>
+                  </View>
 
-                <View className="items-center gap-1 mb-4">
-                  <View className="flex-row items-baseline gap-0.5">
-                    {amountParts.currencyLabelPosition === "prefix" && (
+                  <View className="items-center gap-1 mb-4">
+                    <View className="flex-row items-baseline gap-0.5">
                       <Text
-                        className="text-2xl font-bold text-black dark:text-white"
+                        className="text-4xl font-bold text-black dark:text-white"
                         style={{ fontVariant: ["tabular-nums"] }}
                       >
-                        {amountParts.currencyLabel}
+                        {amountParts.value}
                       </Text>
-                    )}
-                    <Text
-                      className="text-4xl font-bold text-black dark:text-white"
-                      style={{ fontVariant: ["tabular-nums"] }}
-                    >
-                      {amountParts.value}
-                    </Text>
-                    {amountParts.currencyLabelPosition === "suffix" && (
                       <Text className="text-2xl font-bold text-black dark:text-white">
-                        {amountParts.currencyLabel}
+                        원
                       </Text>
-                    )}
-                  </View>
-                  {convertedAmountLabel && (
-                    <Text
-                      className="text-sm font-medium text-foreground/50"
-                      style={{ fontVariant: ["tabular-nums"] }}
-                    >
-                      {convertedAmountLabel}
+                    </View>
+
+                    <Text className="text-base text-foreground/45">
+                      {getBillingSummaryLabel(subscription.billingCycle)}
                     </Text>
-                  )}
+                  </View>
+                </Card.Body>
 
-                  <Text className="text-base text-foreground/45">
-                    {getBillingSummaryLabel(subscription.billingCycle)}
-                  </Text>
-                </View>
-              </Card.Body>
+                <Separator className="opacity-30" />
 
-              <Separator className="opacity-30" />
+                <Card.Footer className="flex-col gap-4 px-2 py-8">
+                  <DetailInfoRow
+                    icon={<CalendarIcon className="text-foreground" />}
+                    label="다음 청구일"
+                    value={formatYmd(subscription.nextBillingDate)}
+                  />
+                  <DetailInfoRow
+                    icon={<RefreshCwIcon className="text-foreground" />}
+                    label="결제 주기"
+                    value={getBillingCycleValue(
+                      subscription.billingDate,
+                      subscription.billingCycle,
+                    )}
+                  />
+                </Card.Footer>
+              </Card>
 
-              <Card.Footer className="flex-col gap-4 px-2 py-8">
-                <DetailInfoRow
-                  icon={<CalendarIcon className="text-foreground" />}
-                  label={isInTrial ? "무료 체험 종료일" : "다음 청구일"}
-                  value={formatYmd(subscription.nextBillingDate)}
-                />
-                <DetailInfoRow
-                  icon={<RefreshCwIcon className="text-foreground" />}
-                  label="결제 주기"
-                  value={getBillingCycleValue(
-                    subscription.billingDate,
-                    subscription.billingCycle,
-                  )}
-                />
-              </Card.Footer>
-            </Card>
+              {statistics && (
+                <>
+                  <View className="flex-row gap-3">
+                    <SubscriptionStatisticsSummaryTile
+                      label="누적 결제액"
+                      value={formatAmount(statistics.lifetimePaidTotal)}
+                      tone="success"
+                    />
+                    <SubscriptionStatisticsSummaryTile
+                      label="누적 결제 횟수"
+                      value={`${statistics.paidCount}회`}
+                    />
+                  </View>
+
+                  <View className="flex-row gap-3">
+                    <SubscriptionStatisticsSummaryTile
+                      label="올해 결제액"
+                      value={formatAmount(statistics.currentYearPaidTotal)}
+                    />
+                    <SubscriptionStatisticsSummaryTile
+                      label="향후 12개월 예정"
+                      value={formatAmount(
+                        statistics.nextTwelveMonthsScheduledTotal,
+                      )}
+                    />
+                  </View>
+
+                  <DetailSectionCard
+                    title="결제 추이"
+                    description="최근 6개월 결제액"
+                  >
+                    <SubscriptionStatisticsTrendChart
+                      points={statistics.recentSixMonthTrend}
+                    />
+                  </DetailSectionCard>
+
+                  <DetailSectionCard
+                    title="최근 결제 이력"
+                    description="읽기 전용 자동 기록"
+                  >
+                    <View className="gap-4">
+                      {statistics.recentPaidLogs.length > 0 ? (
+                        statistics.recentPaidLogs.map((paymentLog, index) => (
+                          <View
+                            key={`${paymentLog.id}-${paymentLog.billingDate}`}
+                          >
+                            {index > 0 ? (
+                              <Separator className="mb-4 opacity-20" />
+                            ) : null}
+                            <PaymentLogRow
+                              paymentLog={paymentLog}
+                              statusLabel="결제 완료"
+                              amountLabel={formatAmount(paymentLog.amount)}
+                            />
+                          </View>
+                        ))
+                      ) : (
+                        <Text className="text-sm text-foreground/50">
+                          아직 기록된 결제 이력이 없습니다.
+                        </Text>
+                      )}
+                    </View>
+                  </DetailSectionCard>
+
+                  <DetailSectionCard
+                    title="다가오는 결제"
+                    description="자동 생성된 예정 로그"
+                  >
+                    <View className="gap-4">
+                      {statistics.upcomingScheduledLogs.length > 0 ? (
+                        statistics.upcomingScheduledLogs.map(
+                          (paymentLog, index) => (
+                            <View
+                              key={`${paymentLog.id}-${paymentLog.billingDate}`}
+                            >
+                              {index > 0 ? (
+                                <Separator className="mb-4 opacity-20" />
+                              ) : null}
+                              <PaymentLogRow
+                                paymentLog={paymentLog}
+                                statusLabel="예정"
+                                amountLabel={formatAmount(paymentLog.amount)}
+                              />
+                            </View>
+                          ),
+                        )
+                      ) : (
+                        <Text className="text-sm text-foreground/50">
+                          예정된 결제가 없습니다.
+                        </Text>
+                      )}
+                    </View>
+                  </DetailSectionCard>
+                </>
+              )}
+            </View>
           )}
         </ScrollView>
       </View>

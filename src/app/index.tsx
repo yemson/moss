@@ -8,15 +8,13 @@ import { hapticImpactLight } from "@/lib/haptics";
 import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
 import {
   deleteSubscription,
-  getUsdKrwRate,
   listSubscriptions,
   type SubscriptionWithCategory,
-  type UsdKrwExchangeRate,
 } from "@/lib/subscription-store";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useRouter } from "expo-router";
 import { Button } from "heroui-native";
-import { PlusIcon, SettingsIcon } from "lucide-uniwind";
+import { PlusIcon, SettingsIcon, TrendingUpIcon } from "lucide-uniwind";
 import React, {
   useCallback,
   useEffect,
@@ -29,8 +27,8 @@ import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSw
 
 const ALL_CATEGORY_KEY = "all";
 const SORT_OPTIONS = [
-  { value: "billing-date", label: "결제일 가까운 순" },
-  { value: "amount-desc", label: "큰 금액 순" },
+  { value: "billing-date", label: "결제일 순" },
+  { value: "amount-desc", label: "결제액 순" },
 ] as const;
 
 type SortKey = (typeof SORT_OPTIONS)[number]["value"];
@@ -51,43 +49,10 @@ function compareByBillingDate(
 function compareByAmountDesc(
   a: SubscriptionWithCategory,
   b: SubscriptionWithCategory,
-  exchangeRate: UsdKrwExchangeRate | null,
 ) {
-  const getComparableAmount = (subscription: SubscriptionWithCategory) => {
-    if (subscription.currency === "KRW") {
-      return subscription.amount;
-    }
-
-    if (!exchangeRate) {
-      return null;
-    }
-
-    return Math.round(subscription.amount * exchangeRate.usdToKrwRate);
-  };
-
-  const comparableAmountA = getComparableAmount(a);
-  const comparableAmountB = getComparableAmount(b);
-
-  if (comparableAmountA == null && comparableAmountB != null) {
-    return 1;
-  }
-
-  if (comparableAmountA != null && comparableAmountB == null) {
-    return -1;
-  }
-
-  if (comparableAmountA != null && comparableAmountB != null) {
-    const amountDiff = comparableAmountB - comparableAmountA;
-    if (amountDiff !== 0) {
-      return amountDiff;
-    }
-  }
-
-  if (comparableAmountA == null && comparableAmountB == null) {
-    const currencyDiff = a.currency.localeCompare(b.currency);
-    if (currencyDiff !== 0) {
-      return currencyDiff;
-    }
+  const amountDiff = b.amount - a.amount;
+  if (amountDiff !== 0) {
+    return amountDiff;
   }
 
   const billingDateDiff = a.nextBillingDate.localeCompare(b.nextBillingDate);
@@ -101,14 +66,11 @@ function compareByAmountDesc(
 function sortSubscriptions(
   subscriptions: SubscriptionWithCategory[],
   sortKey: SortKey,
-  exchangeRate: UsdKrwExchangeRate | null,
 ) {
   const nextSubscriptions = [...subscriptions];
 
   nextSubscriptions.sort(
-    sortKey === "amount-desc"
-      ? (a, b) => compareByAmountDesc(a, b, exchangeRate)
-      : compareByBillingDate,
+    sortKey === "amount-desc" ? compareByAmountDesc : compareByBillingDate,
   );
 
   return nextSubscriptions;
@@ -121,9 +83,6 @@ export default function HomeRoute() {
   const [subscriptions, setSubscriptions] = useState<
     SubscriptionWithCategory[] | null
   >(() => initialHomeData?.subscriptions ?? null);
-  const [exchangeRate, setExchangeRate] = useState<UsdKrwExchangeRate | null>(
-    () => initialHomeData?.exchangeRate ?? null,
-  );
   const [selectedCategoryKey, setSelectedCategoryKey] =
     useState<string>(ALL_CATEGORY_KEY);
   const [sortOption, setSortOption] = useState<SortOption>(SORT_OPTIONS[0]);
@@ -139,14 +98,6 @@ export default function HomeRoute() {
     } catch (error) {
       console.error("Failed to load subscriptions:", error);
       setSubscriptions((currentSubscriptions) => currentSubscriptions ?? []);
-    }
-
-    try {
-      const nextExchangeRate = await getUsdKrwRate();
-      setExchangeRate(nextExchangeRate);
-    } catch (error) {
-      console.error("Failed to load exchange rate:", error);
-      setExchangeRate((currentExchangeRate) => currentExchangeRate ?? null);
     }
   }, []);
 
@@ -254,8 +205,8 @@ export default function HomeRoute() {
     );
   }, [selectedCategoryKey, subscriptions]);
   const visibleSubscriptions = useMemo(
-    () => sortSubscriptions(filteredSubscriptions, sortOption.value, exchangeRate),
-    [exchangeRate, filteredSubscriptions, sortOption.value],
+    () => sortSubscriptions(filteredSubscriptions, sortOption.value),
+    [filteredSubscriptions, sortOption.value],
   );
 
   useEffect(() => {
@@ -276,6 +227,25 @@ export default function HomeRoute() {
           headerLargeTitleEnabled: !isEmptyState,
         }}
       />
+
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.View>
+          <Pressable
+            onPressIn={hapticImpactLight}
+            onPress={() => {
+              router.push("/statistics");
+
+              setTimeout(() => {
+                consumeOpenedSwipeable();
+              }, 300);
+            }}
+            hitSlop={10}
+            className="w-8 h-8 items-center justify-center"
+          >
+            <TrendingUpIcon className="text-black dark:text-white" />
+          </Pressable>
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
 
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.View>
@@ -315,7 +285,6 @@ export default function HomeRoute() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <SubscriptionCard
-              exchangeRate={exchangeRate}
               swipeableRef={getSwipeableRef(item.id)}
               onSwipeableWillOpen={() => handleSwipeableWillOpen(item.id)}
               onSwipeableClose={() => handleSwipeableClose(item.id)}
@@ -337,10 +306,7 @@ export default function HomeRoute() {
           }}
           ListHeaderComponent={
             <>
-              <SubscriptionSummaryCard
-                subscriptions={subscriptions ?? []}
-                exchangeRate={exchangeRate}
-              />
+              <SubscriptionSummaryCard subscriptions={subscriptions ?? []} />
 
               <Text className="mb-3 mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
                 구독 목록

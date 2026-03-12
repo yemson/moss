@@ -19,6 +19,7 @@
 - Source of truth is SQLite in `src/lib/subscription-store.ts`.
 - Home and detail screens re-read data with `useFocusEffect`.
 - Create/edit screens load categories on mount.
+- Recurring billing calculations and D-day behavior should use device local date, not UTC date boundaries.
 - Do not add speculative network/data abstractions for local-only problems.
 
 ## UI / UX Principles
@@ -54,12 +55,17 @@
 - Open `new` from home with `router.push("/subscriptions/new")`.
 - Create/edit success should usually return with `router.back()`, then rely on focus re-query.
 - Avoid `replace` unless the UX specifically requires replacing history.
+- New subscription modal allows gesture dismiss only on step 1.
+- After the user advances past step 1, prefer explicit close handling with a confirmation alert instead of silent dismiss.
 
 ## Form Conventions
 - Shared form UI lives in `src/components/subscriptions/subscription-form.tsx`.
+- New subscription uses the step flow in `src/components/subscriptions/subscription-create-flow.tsx`.
+- Edit subscription continues to use the shared single-screen form in `src/components/subscriptions/subscription-form.tsx`.
 - Date picking uses HeroUI `BottomSheet`, not `Dialog`.
-- Template selection uses HeroUI `Select` with `popover`.
-- Template list should stay scrollable and height-limited.
+- In the create flow, step 1 is a dedicated template-selection screen.
+- If the user switches from a template back to `직접 입력`, clear template-filled name/category state instead of preserving it.
+- Shared edit form still uses HeroUI `Select` with `popover` for template/category controls.
 
 ## Template / Logo Rules
 - Templates are defined in `src/lib/subscription-templates.ts`.
@@ -75,11 +81,24 @@
 - Formatting rules:
   - KRW: no decimals
   - USD: up to 2 decimals
+- When sorting by `큰 금액 순`, compare mixed currencies in KRW terms using the stored USD/KRW exchange rate.
+- If exchange rate data is unavailable, USD subscriptions sort after KRW subscriptions for amount-desc ordering.
 
 ## Theming
 - Theme and currency display settings are persisted through `src/lib/app-settings.tsx`.
 - App startup applies saved theme before rendering UI.
 - Do not introduce additional settings providers for one-off settings.
+
+## Notifications
+- Global notification settings are persisted in `src/lib/app-settings.tsx`.
+- Per-subscription day-before alerts are stored in SQLite and synchronized through `src/lib/subscription-notifications.ts`.
+- Notification scheduling is aggregated: if multiple subscriptions are due on the same next day, schedule a single grouped notification instead of one per subscription.
+- Development-only notification testing lives under `src/app/dev/...` and should stay hidden outside `__DEV__`.
+
+## Summary Card Conventions
+- The large summary amount on home represents the remaining scheduled amount for the current month.
+- The smaller gray amount beside it represents the full current-month billing amount, including charges earlier in the same month.
+- Both summary amounts exclude active trials.
 
 ## Implementation Style
 - Prefer modifying existing code paths over adding new systems.

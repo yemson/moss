@@ -1,17 +1,13 @@
-import { useAppSettings } from "@/lib/app-settings";
 import { formatAmount } from "@/lib/subscription-format";
 import {
-  isTrialActive,
   listUpcomingBillingDates,
   type SubscriptionWithCategory,
-  type UsdKrwExchangeRate,
 } from "@/lib/subscription-store";
 import { Card } from "heroui-native";
 import { Text, View } from "react-native";
 
 interface SubscriptionSummaryCardProps {
   subscriptions: SubscriptionWithCategory[];
-  exchangeRate: UsdKrwExchangeRate | null;
 }
 
 function getMonthTitle(date: Date) {
@@ -39,7 +35,6 @@ function hasBillingInCurrentMonth(
   return listUpcomingBillingDates(
     subscription.billingDate,
     subscription.billingCycle,
-    subscription.trialEndDate,
     end,
     start,
   ).some((billingDate) => isSameMonth(billingDate, now));
@@ -48,27 +43,15 @@ function hasBillingInCurrentMonth(
 function getUpcomingMonthlyTotal(
   subscriptions: SubscriptionWithCategory[],
   now: Date,
-  exchangeRate: UsdKrwExchangeRate | null,
 ) {
   let total = 0;
 
   for (const subscription of subscriptions) {
-    if (isTrialActive(subscription.trialEndDate, now)) {
-      continue;
-    }
-
     if (!isSameMonth(subscription.nextBillingDate, now)) {
       continue;
     }
 
-    if (subscription.currency === "KRW") {
-      total += subscription.amount;
-      continue;
-    }
-
-    if (subscription.currency === "USD" && exchangeRate) {
-      total += Math.round(subscription.amount * exchangeRate.usdToKrwRate);
-    }
+    total += subscription.amount;
   }
 
   return total;
@@ -77,79 +60,29 @@ function getUpcomingMonthlyTotal(
 function getFullMonthlyTotal(
   subscriptions: SubscriptionWithCategory[],
   now: Date,
-  exchangeRate: UsdKrwExchangeRate | null,
 ) {
   let total = 0;
 
   for (const subscription of subscriptions) {
-    if (isTrialActive(subscription.trialEndDate, now)) {
-      continue;
-    }
-
     if (!hasBillingInCurrentMonth(subscription, now)) {
       continue;
     }
 
-    if (subscription.currency === "KRW") {
-      total += subscription.amount;
-      continue;
-    }
-
-    if (subscription.currency === "USD" && exchangeRate) {
-      total += Math.round(subscription.amount * exchangeRate.usdToKrwRate);
-    }
+    total += subscription.amount;
   }
 
   return total;
 }
 
-function hasCurrentMonthUsdSubscriptions(
-  subscriptions: SubscriptionWithCategory[],
-  now: Date,
-) {
-  return subscriptions.some(
-    (subscription) =>
-      !isTrialActive(subscription.trialEndDate, now) &&
-      subscription.currency === "USD" &&
-      hasBillingInCurrentMonth(subscription, now),
-  );
-}
-
-function formatExchangeRateReferenceLabel(timeLastUpdateUtc: string) {
-  const date = new Date(timeLastUpdateUtc);
-  const label = new Intl.DateTimeFormat("ko-KR", {
-    month: "long",
-    day: "numeric",
-  }).format(date);
-
-  return `${label} 환율 기준`;
-}
-
 export function SubscriptionSummaryCard({
   subscriptions,
-  exchangeRate,
 }: SubscriptionSummaryCardProps) {
   const now = new Date();
-  const { currencyDisplayMode } = useAppSettings();
-  const monthlyTotal = getUpcomingMonthlyTotal(
-    subscriptions,
-    now,
-    exchangeRate,
-  );
-  const fullMonthlyTotal = getFullMonthlyTotal(
-    subscriptions,
-    now,
-    exchangeRate,
-  );
-  const shouldShowExchangeRateReference =
-    !!exchangeRate && hasCurrentMonthUsdSubscriptions(subscriptions, now);
+  const monthlyTotal = getUpcomingMonthlyTotal(subscriptions, now);
+  const fullMonthlyTotal = getFullMonthlyTotal(subscriptions, now);
   const title = getMonthTitle(now);
-  const totalLabel = formatAmount(monthlyTotal, "KRW", currencyDisplayMode);
-  const fullMonthlyTotalLabel = formatAmount(
-    fullMonthlyTotal,
-    "KRW",
-    currencyDisplayMode,
-  );
+  const totalLabel = formatAmount(monthlyTotal);
+  const fullMonthlyTotalLabel = formatAmount(fullMonthlyTotal);
 
   return (
     <Card className="mb-4 rounded-3xl px-6 py-6 shadow-lg shadow-neutral-300/10 dark:shadow-none">
@@ -165,16 +98,6 @@ export function SubscriptionSummaryCard({
             <Text className="pb-1 text-sm text-foreground/50">
               / {fullMonthlyTotalLabel}
             </Text>
-          </View>
-          <View className="flex-row justify-between mt-1">
-            <Text className="text-sm text-foreground/50">무료 체험 제외</Text>
-            {shouldShowExchangeRateReference && (
-              <Text className="text-sm text-foreground/50">
-                {formatExchangeRateReferenceLabel(
-                  exchangeRate.timeLastUpdateUtc,
-                )}
-              </Text>
-            )}
           </View>
         </Card.Body>
       </View>

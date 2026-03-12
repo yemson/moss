@@ -1,13 +1,10 @@
 import {
-  getStoredUsdKrwRate,
   listSubscriptions,
   type SubscriptionWithCategory,
-  type UsdKrwExchangeRate,
 } from "@/lib/subscription-store";
 
 export interface InitialHomeData {
   subscriptions: SubscriptionWithCategory[];
-  exchangeRate: UsdKrwExchangeRate | null;
 }
 
 let initialHomeData: InitialHomeData | null = null;
@@ -20,14 +17,10 @@ export async function prepareInitialHomeData(): Promise<InitialHomeData> {
 
   if (!initialHomeDataPromise) {
     initialHomeDataPromise = (async () => {
-      const [subscriptions, exchangeRate] = await Promise.all([
-        listSubscriptions({ isActive: true }),
-        getStoredUsdKrwRate(),
-      ]);
+      const subscriptions = await listSubscriptions({ isActive: true });
 
       const nextInitialHomeData = {
         subscriptions,
-        exchangeRate,
       };
 
       initialHomeData = nextInitialHomeData;

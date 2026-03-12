@@ -2,14 +2,12 @@ import { SubscriptionServiceBadge } from "@/components/subscriptions/subscriptio
 import { hapticSelection } from "@/lib/haptics";
 import {
   BILLING_CYCLE_OPTIONS,
-  CURRENCY_OPTIONS,
   isBillingCycle,
-  isCurrency,
   parseAmountInput,
   type SelectOption,
 } from "@/lib/subscription-editor";
 import { SUBSCRIPTION_TEMPLATES } from "@/lib/subscription-templates";
-import type { BillingCycle, Currency } from "@/lib/subscription-store";
+import type { BillingCycle } from "@/lib/subscription-store";
 import { useHeaderHeight } from "@react-navigation/elements";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -57,7 +55,7 @@ const STEP_CONTENT = [
   {
     eyebrow: "3 / 5",
     title: "결제 정보",
-    description: "금액과 날짜, 무료 체험 여부를 입력하세요.",
+    description: "결제액과 날짜를 입력하세요.",
   },
   {
     eyebrow: "4 / 5",
@@ -76,19 +74,14 @@ export interface SubscriptionCreateFlowValues {
   templateKey?: string | null;
   serviceName: string;
   amount: string;
-  currency: Currency;
   billingDate: string;
-  trialEndDate: string;
   notifyDayBefore: boolean;
   notificationsEnabled: boolean;
   billingCycle: BillingCycle;
   memo: string;
   categoryId: string | null;
-  isTrialEnabled: boolean;
   billingDateDraft: Date;
   isBillingDateSheetOpen: boolean;
-  trialEndDateDraft: Date;
-  isTrialEndDateSheetOpen: boolean;
 }
 
 interface SubscriptionCreateFlowProps {
@@ -100,16 +93,11 @@ interface SubscriptionCreateFlowProps {
   onTemplateSelectionChange: (templateSelection: string) => void;
   onServiceNameChange: (value: string) => void;
   onAmountChange: (value: string) => void;
-  onCurrencyChange: (value: Currency) => void;
   onBillingCycleChange: (value: BillingCycle) => void;
-  onTrialEnabledChange: (nextEnabled: boolean) => void;
   onNotifyDayBeforeChange: (nextEnabled: boolean) => void;
   onBillingDateSheetOpenChange: (nextOpen: boolean) => void;
   onBillingDateDraftChange: (date: Date) => void;
   onBillingDateApply: () => void;
-  onTrialEndDateSheetOpenChange: (nextOpen: boolean) => void;
-  onTrialEndDateDraftChange: (date: Date) => void;
-  onTrialEndDateApply: () => void;
   onCategoryChange: (categoryId: string) => void;
   onMemoChange: (value: string) => void;
   onSubmit: () => void;
@@ -139,19 +127,12 @@ function getStepState(step: number, values: SubscriptionCreateFlowValues) {
   }
 
   if (step === 2) {
-    if (parseAmountInput(values.amount, values.currency) == null) {
+    if (parseAmountInput(values.amount) == null) {
       return {
         canProceed: false,
       };
     }
-
-    if (values.isTrialEnabled && !values.trialEndDate.trim()) {
-      return {
-        canProceed: false,
-      };
-    }
-
-    if (!values.isTrialEnabled && !values.billingDate.trim()) {
+    if (!values.billingDate.trim()) {
       return {
         canProceed: false,
       };
@@ -172,16 +153,11 @@ export function SubscriptionCreateFlow({
   onTemplateSelectionChange,
   onServiceNameChange,
   onAmountChange,
-  onCurrencyChange,
   onBillingCycleChange,
-  onTrialEnabledChange,
   onNotifyDayBeforeChange,
   onBillingDateSheetOpenChange,
   onBillingDateDraftChange,
   onBillingDateApply,
-  onTrialEndDateSheetOpenChange,
-  onTrialEndDateDraftChange,
-  onTrialEndDateApply,
   onCategoryChange,
   onMemoChange,
   onSubmit,
@@ -196,28 +172,15 @@ export function SubscriptionCreateFlow({
   const selectedCategory = categoryOptions.find(
     (option) => option.value === values.categoryId,
   );
-  const selectedCurrency = CURRENCY_OPTIONS.find(
-    (option) => option.value === values.currency,
-  );
   const selectedBillingCycle = BILLING_CYCLE_OPTIONS.find(
     (option) => option.value === values.billingCycle,
   );
-  const dateFieldLabel = values.isTrialEnabled ? "무료 체험 종료일" : "결제일";
-  const dateFieldValue = values.isTrialEnabled
-    ? values.trialEndDate
-    : values.billingDate;
-  const dateSheetTitle = values.isTrialEnabled
-    ? "무료 체험 종료일 선택"
-    : "결제일 선택";
-  const dateSheetDescription = values.isTrialEnabled
-    ? "종료일이 첫 유료 결제일이 됩니다."
-    : "구독을 시작한 날짜를 선택하세요.";
-  const isDateSheetOpen = values.isTrialEnabled
-    ? values.isTrialEndDateSheetOpen
-    : values.isBillingDateSheetOpen;
-  const dateDraft = values.isTrialEnabled
-    ? values.trialEndDateDraft
-    : values.billingDateDraft;
+  const dateFieldLabel = "결제일";
+  const dateFieldValue = values.billingDate;
+  const dateSheetTitle = "결제일 선택";
+  const dateSheetDescription = "구독을 시작한 날짜를 선택하세요.";
+  const isDateSheetOpen = values.isBillingDateSheetOpen;
+  const dateDraft = values.billingDateDraft;
   const currentStepState = useMemo(
     () => getStepState(currentStep, values),
     [currentStep, values],
@@ -445,78 +408,23 @@ export function SubscriptionCreateFlow({
     >
       {renderStepHeader(2)}
 
-      <View className="flex-row items-end gap-3">
-        <View className="flex-2">
-          <TextField isRequired>
-            <Text className="ml-1 font-semibold dark:text-white">금액</Text>
-            <Input
-              className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
-              value={values.amount}
-              onChangeText={onAmountChange}
-              onFocus={hapticSelection}
-              placeholder="예: 17000"
-              keyboardType={
-                values.currency === "USD" ? "decimal-pad" : "number-pad"
-              }
-            />
-          </TextField>
-        </View>
-        <View className="flex-1 gap-2">
-          <Text className="ml-1 font-semibold dark:text-white">통화</Text>
-          <Select
-            value={selectedCurrency}
-            onValueChange={(nextValue) => {
-              hapticSelection();
-
-              if (nextValue && isCurrency(nextValue.value)) {
-                onCurrencyChange(nextValue.value);
-              }
-            }}
-            onOpenChange={(isOpen) => {
-              if (isOpen) {
-                Keyboard.dismiss();
-              }
-            }}
-            presentation="popover"
-          >
-            <Select.Trigger className="min-w-25 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
-              <Select.Value placeholder="선택" />
-              <Select.TriggerIndicator />
-            </Select.Trigger>
-            <Select.Portal>
-              <Select.Overlay className="bg-black/20 dark:bg-black/40" />
-              <Select.Content
-                presentation="popover"
-                width="trigger"
-                placement="bottom"
-                align="end"
-              >
-                {CURRENCY_OPTIONS.map((option, index) => (
-                  <Fragment key={option.value}>
-                    <Select.Item value={option.value} label={option.label} />
-                    {index < CURRENCY_OPTIONS.length - 1 && (
-                      <Separator className="opacity-40" />
-                    )}
-                  </Fragment>
-                ))}
-              </Select.Content>
-            </Select.Portal>
-          </Select>
-        </View>
-      </View>
+      <TextField isRequired>
+        <Text className="ml-1 font-semibold dark:text-white">결제액</Text>
+        <Input
+          className="ios:shadow-lg shadow-neutral-300/10 dark:shadow-none"
+          value={values.amount}
+          onChangeText={onAmountChange}
+          onFocus={hapticSelection}
+          placeholder="예: 17000"
+          keyboardType="number-pad"
+        />
+      </TextField>
 
       <View className="flex-row items-end gap-3">
         <View className="flex-2">
           <BottomSheet
             isOpen={isDateSheetOpen}
-            onOpenChange={(nextOpen) => {
-              if (values.isTrialEnabled) {
-                onTrialEndDateSheetOpenChange(nextOpen);
-                return;
-              }
-
-              onBillingDateSheetOpenChange(nextOpen);
-            }}
+            onOpenChange={onBillingDateSheetOpenChange}
           >
             <TextField isRequired>
               <Text className="ml-1 font-semibold dark:text-white">
@@ -566,11 +474,6 @@ export function SubscriptionCreateFlow({
                         return;
                       }
 
-                      if (values.isTrialEnabled) {
-                        onTrialEndDateDraftChange(selectedDate);
-                        return;
-                      }
-
                       onBillingDateDraftChange(selectedDate);
                     }}
                     style={{
@@ -586,11 +489,6 @@ export function SubscriptionCreateFlow({
                     className="flex-1"
                     size="lg"
                     onPress={() => {
-                      if (values.isTrialEnabled) {
-                        onTrialEndDateSheetOpenChange(false);
-                        return;
-                      }
-
                       onBillingDateSheetOpenChange(false);
                     }}
                   >
@@ -600,14 +498,7 @@ export function SubscriptionCreateFlow({
                     size="lg"
                     className="flex-1"
                     onPressIn={hapticSelection}
-                    onPress={() => {
-                      if (values.isTrialEnabled) {
-                        onTrialEndDateApply();
-                        return;
-                      }
-
-                      onBillingDateApply();
-                    }}
+                    onPress={onBillingDateApply}
                   >
                     <Button.Label className="text-white">완료</Button.Label>
                   </Button>
@@ -658,32 +549,6 @@ export function SubscriptionCreateFlow({
               </Select.Content>
             </Select.Portal>
           </Select>
-        </View>
-      </View>
-
-      <View className="gap-2 rounded-3xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
-        <View className="flex-row items-center justify-between gap-4">
-          <View className="flex-1 gap-1">
-            <Text className="font-semibold text-black dark:text-white">
-              무료 체험
-            </Text>
-            <Text className="text-sm text-foreground/50">
-              종료일이 첫 유료 결제일이 됩니다.
-            </Text>
-          </View>
-          <Switch
-            isSelected={values.isTrialEnabled}
-            onPressIn={hapticSelection}
-            onSelectedChange={onTrialEnabledChange}
-          >
-            <Switch.Thumb
-              animation={{
-                backgroundColor: {
-                  value: ["#ffffff", "#ffffff"],
-                },
-              }}
-            />
-          </Switch>
         </View>
       </View>
     </ScrollView>
