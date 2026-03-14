@@ -1,5 +1,4 @@
 import type {
-  BillingCycle,
   SubscriptionPaymentLog,
   SubscriptionWithCategory,
 } from "@/lib/subscription-store";
@@ -18,20 +17,14 @@ export interface StatisticsBreakdownItem {
   share: number;
 }
 
-export interface StatisticsDistributionItem {
-  label: string;
-  count: number;
-}
-
 export interface StatisticsOverview {
   activeSubscriptionCount: number;
   remainingThisMonthTotal: number;
   fullThisMonthTotal: number;
   lifetimePaidTotal: number;
+  nextTwelveMonthsScheduledTotal: number;
   recentSixMonthTrend: MonthlySpendPoint[];
   categoryBreakdown: StatisticsBreakdownItem[];
-  billingCycleDistribution: StatisticsDistributionItem[];
-  upcomingPayments: SubscriptionPaymentLog[];
 }
 
 export interface SubscriptionStatisticsDetail {
@@ -41,7 +34,6 @@ export interface SubscriptionStatisticsDetail {
   nextTwelveMonthsScheduledTotal: number;
   recentSixMonthTrend: MonthlySpendPoint[];
   recentPaidLogs: SubscriptionPaymentLog[];
-  upcomingScheduledLogs: SubscriptionPaymentLog[];
 }
 
 function toLocalDateString(date: Date): string {
@@ -161,24 +153,6 @@ function buildCategoryBreakdown(
     .slice(0, 5);
 }
 
-function buildDistribution(
-  entries: { label: string; value: string }[],
-): StatisticsDistributionItem[] {
-  const counts = new Map<string, number>();
-
-  for (const entry of entries) {
-    counts.set(entry.label, (counts.get(entry.label) ?? 0) + 1);
-  }
-
-  return Array.from(counts.entries())
-    .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count);
-}
-
-function getBillingCycleLabel(value: BillingCycle): string {
-  return value === "monthly" ? "월간" : "연간";
-}
-
 function getFutureTwelveMonthsEnd(baseDate: Date = new Date()): string {
   return toLocalDateString(
     new Date(baseDate.getFullYear(), baseDate.getMonth() + 13, 0),
@@ -194,13 +168,13 @@ export function getStatisticsOverview(
     (subscription) => subscription.isActive,
   );
   const todayDateKey = toLocalDateString(baseDate);
-  const next30DateKey = toLocalDateString(
-    new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + 30),
-  );
   const currentMonthLogs = paymentLogs.filter(
     (log) => log.subscriptionIsActive && isSameMonth(log.billingDate, baseDate),
   );
   const paidLogs = paymentLogs.filter((log) => log.status === "paid");
+  const scheduledLogs = paymentLogs.filter(
+    (log) => log.status === "scheduled" && log.subscriptionIsActive,
+  );
   const recentSixMonthPaidLogs = paidLogs.filter((log) =>
     getMonthBuckets(baseDate).some((bucket) => bucket.key === log.billingDate.slice(0, 7)),
   );
@@ -214,24 +188,15 @@ export function getStatisticsOverview(
     ),
     fullThisMonthTotal: sumLogAmounts(currentMonthLogs),
     lifetimePaidTotal: sumLogAmounts(paidLogs),
+    nextTwelveMonthsScheduledTotal: sumLogAmounts(
+      scheduledLogs.filter(
+        (log) =>
+          log.billingDate >= todayDateKey &&
+          log.billingDate <= getFutureTwelveMonthsEnd(baseDate),
+      ),
+    ),
     recentSixMonthTrend: buildMonthlyTrend(paidLogs, baseDate),
     categoryBreakdown: buildCategoryBreakdown(recentSixMonthPaidLogs),
-    billingCycleDistribution: buildDistribution(
-      activeSubscriptions.map((subscription) => ({
-        label: getBillingCycleLabel(subscription.billingCycle),
-        value: subscription.id,
-      })),
-    ),
-    upcomingPayments: paymentLogs
-      .filter(
-        (log) =>
-          log.subscriptionIsActive &&
-          log.status === "scheduled" &&
-          log.billingDate >= todayDateKey &&
-          log.billingDate <= next30DateKey,
-      )
-      .sort((a, b) => a.billingDate.localeCompare(b.billingDate))
-      .slice(0, 5),
   };
 }
 
@@ -262,10 +227,5 @@ export function getSubscriptionStatisticsDetail(
       .slice()
       .sort((a, b) => b.billingDate.localeCompare(a.billingDate))
       .slice(0, 5),
-    upcomingScheduledLogs: scheduledLogs
-      .filter((log) => log.billingDate >= todayDateKey)
-      .slice()
-      .sort((a, b) => a.billingDate.localeCompare(b.billingDate))
-      .slice(0, 3),
   };
 }

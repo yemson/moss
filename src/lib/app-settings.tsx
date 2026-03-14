@@ -13,7 +13,7 @@ import {
 } from "react";
 import { Uniwind } from "uniwind";
 
-const APP_SETTINGS_STORAGE_KEY = "subak.settings";
+const APP_SETTINGS_STORAGE_KEY = "moss.settings";
 
 export interface AppSettings {
   themeMode: ThemeMode;

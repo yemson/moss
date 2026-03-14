@@ -19,9 +19,6 @@ export function SubscriptionStatisticsSummaryTile({
           tone === "success" ? "text-success" : "text-black dark:text-white"
         }`}
         numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.75}
-        style={{ fontVariant: ["tabular-nums"] }}
       >
         {value}
       </Text>

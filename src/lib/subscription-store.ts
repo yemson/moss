@@ -100,7 +100,7 @@ export interface ListSubscriptionPaymentLogsOptions {
   sortDirection?: "asc" | "desc";
 }
 
-const DATABASE_NAME = "subak.db";
+const DATABASE_NAME = "moss.db";
 const PAYMENT_LOG_FUTURE_MONTH_RANGE = 12;
 
 const PRESET_CATEGORIES: { id: string; name: string }[] = [
@@ -1026,14 +1026,13 @@ export async function createSubscription(
         memo,
         createdAt,
         updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
       trimmedName,
       input.templateKey ?? null,
       input.amount,
-      "KRW",
       input.billingCycle,
       input.billingDate,
       input.notifyDayBefore === true ? 1 : 0,

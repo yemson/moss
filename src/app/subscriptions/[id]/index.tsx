@@ -23,12 +23,7 @@ import { SubscriptionServiceBadge } from "@/components/subscriptions/subscriptio
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Card, Separator } from "heroui-native";
-import {
-  CalendarIcon,
-  PencilIcon,
-  RefreshCwIcon,
-  Trash2Icon,
-} from "lucide-uniwind";
+import { PencilIcon, Trash2Icon } from "lucide-uniwind";
 import { useCallback, useState, type ReactNode } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 
@@ -50,7 +45,7 @@ function getBillingCycleValue(
 }
 
 interface DetailInfoRowProps {
-  icon: ReactNode;
+  icon?: ReactNode;
   label: string;
   value: string;
 }
@@ -59,7 +54,7 @@ function DetailInfoRow({ icon, label, value }: DetailInfoRowProps) {
   return (
     <View className="flex-row items-center justify-between gap-3 py-0.5">
       <View className="flex-row items-center gap-2.5">
-        <View className="opacity-50">{icon}</View>
+        {icon && <View className="opacity-50">{icon}</View>}
         <Text className="text-sm text-foreground/55">{label}</Text>
       </View>
       <Text
@@ -303,14 +298,12 @@ export default function SubscriptionDetailRoute() {
 
                 <Separator className="opacity-30" />
 
-                <Card.Footer className="flex-col gap-4 px-2 py-8">
+                <Card.Footer className="flex-col gap-4 px-2 py-4 pt-6">
                   <DetailInfoRow
-                    icon={<CalendarIcon className="text-foreground" />}
                     label="다음 청구일"
                     value={formatYmd(subscription.nextBillingDate)}
                   />
                   <DetailInfoRow
-                    icon={<RefreshCwIcon className="text-foreground" />}
                     label="결제 주기"
                     value={getBillingCycleValue(
                       subscription.billingDate,
@@ -324,23 +317,23 @@ export default function SubscriptionDetailRoute() {
                 <>
                   <View className="flex-row gap-3">
                     <SubscriptionStatisticsSummaryTile
-                      label="누적 결제액"
+                      label="지금까지 결제"
                       value={formatAmount(statistics.lifetimePaidTotal)}
                       tone="success"
                     />
                     <SubscriptionStatisticsSummaryTile
-                      label="누적 결제 횟수"
-                      value={`${statistics.paidCount}회`}
+                      label="결제 횟수"
+                      value={`${statistics.paidCount}번`}
                     />
                   </View>
 
                   <View className="flex-row gap-3">
                     <SubscriptionStatisticsSummaryTile
-                      label="올해 결제액"
+                      label="올해 결제"
                       value={formatAmount(statistics.currentYearPaidTotal)}
                     />
                     <SubscriptionStatisticsSummaryTile
-                      label="향후 12개월 예정"
+                      label="앞으로 12개월 예정"
                       value={formatAmount(
                         statistics.nextTwelveMonthsScheduledTotal,
                       )}
@@ -348,8 +341,8 @@ export default function SubscriptionDetailRoute() {
                   </View>
 
                   <DetailSectionCard
-                    title="결제 추이"
-                    description="최근 6개월 결제액"
+                    title="결제 흐름"
+                    description="최근 6개월 동안 이 구독에 얼마나 썼는지 볼 수 있어요."
                   >
                     <SubscriptionStatisticsTrendChart
                       points={statistics.recentSixMonthTrend}
@@ -357,8 +350,8 @@ export default function SubscriptionDetailRoute() {
                   </DetailSectionCard>
 
                   <DetailSectionCard
-                    title="최근 결제 이력"
-                    description="읽기 전용 자동 기록"
+                    title="최근 결제 내역"
+                    description="최근에 결제된 기록을 최신 순으로 보여드려요."
                   >
                     <View className="gap-4">
                       {statistics.recentPaidLogs.length > 0 ? (
@@ -371,44 +364,14 @@ export default function SubscriptionDetailRoute() {
                             ) : null}
                             <PaymentLogRow
                               paymentLog={paymentLog}
-                              statusLabel="결제 완료"
+                              statusLabel="결제됨"
                               amountLabel={formatAmount(paymentLog.amount)}
                             />
                           </View>
                         ))
                       ) : (
                         <Text className="text-sm text-foreground/50">
-                          아직 기록된 결제 이력이 없습니다.
-                        </Text>
-                      )}
-                    </View>
-                  </DetailSectionCard>
-
-                  <DetailSectionCard
-                    title="다가오는 결제"
-                    description="자동 생성된 예정 로그"
-                  >
-                    <View className="gap-4">
-                      {statistics.upcomingScheduledLogs.length > 0 ? (
-                        statistics.upcomingScheduledLogs.map(
-                          (paymentLog, index) => (
-                            <View
-                              key={`${paymentLog.id}-${paymentLog.billingDate}`}
-                            >
-                              {index > 0 ? (
-                                <Separator className="mb-4 opacity-20" />
-                              ) : null}
-                              <PaymentLogRow
-                                paymentLog={paymentLog}
-                                statusLabel="예정"
-                                amountLabel={formatAmount(paymentLog.amount)}
-                              />
-                            </View>
-                          ),
-                        )
-                      ) : (
-                        <Text className="text-sm text-foreground/50">
-                          예정된 결제가 없습니다.
+                          아직 결제된 내역이 없어요.
                         </Text>
                       )}
                     </View>

@@ -25,7 +25,7 @@ export function SubscriptionStatisticsTrendChart({
   points,
 }: SubscriptionStatisticsTrendChartProps) {
   const { width: screenWidth } = useWindowDimensions();
-  const chartWidth = Math.max(240, screenWidth - 88);
+  const chartWidth = Math.max(240, screenWidth - 98);
   const maxValue = Math.max(...points.map((point) => point.total), 0);
   const minValue = 0;
   const range = Math.max(maxValue - minValue, 1);
@@ -113,7 +113,7 @@ export function SubscriptionStatisticsTrendChart({
             <Text
               key={point.monthKey}
               className="text-[11px] text-foreground/45"
-              style={{ width: `${100 / Math.max(points.length, 1)}%` }}
+              style={{ width: `${100 / Math.max(points.length, 10)}%` }}
             >
               {point.label}
             </Text>

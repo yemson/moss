@@ -1,7 +1,6 @@
-import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { SubscriptionStatisticsSummaryTile } from "@/components/subscriptions/subscription-statistics-summary-tile";
 import { SubscriptionStatisticsTrendChart } from "@/components/subscriptions/subscription-statistics-trend-chart";
-import { formatAmount, formatYmd } from "@/lib/subscription-format";
+import { formatAmount } from "@/lib/subscription-format";
 import { getStatisticsOverview } from "@/lib/subscription-statistics";
 import {
   listSubscriptionPaymentLogs,
@@ -12,7 +11,7 @@ import {
 } from "@/lib/subscription-store";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack } from "expo-router";
-import { Card, Separator } from "heroui-native";
+import { Card } from "heroui-native";
 import { useCallback, useState, type ReactNode } from "react";
 import { ScrollView, Text, View } from "react-native";
 
@@ -83,68 +82,6 @@ function BreakdownRow({
   );
 }
 
-function DistributionRow({
-  label,
-  count,
-  total,
-}: {
-  label: string;
-  count: number;
-  total: number;
-}) {
-  return (
-    <View className="gap-2">
-      <View className="flex-row items-center justify-between">
-        <Text className="font-medium text-black dark:text-white">{label}</Text>
-        <Text
-          className="text-sm text-foreground/55"
-          style={{ fontVariant: ["tabular-nums"] }}
-        >
-          {count}개
-        </Text>
-      </View>
-      <View className="h-2 rounded-full bg-surface-secondary">
-        <View
-          className="h-2 rounded-full bg-info"
-          style={{ width: `${total === 0 ? 0 : (count / total) * 100}%` }}
-        />
-      </View>
-    </View>
-  );
-}
-
-function UpcomingPaymentRow({
-  payment,
-  amountLabel,
-}: {
-  payment: SubscriptionPaymentLog;
-  amountLabel: string;
-}) {
-  return (
-    <View className="flex-row items-center gap-3">
-      <SubscriptionServiceBadge
-        name={payment.subscriptionName}
-        templateKey={payment.subscriptionTemplateKey}
-        size="sm"
-      />
-      <View className="min-w-0 flex-1 gap-0.5">
-        <Text className="font-medium text-black dark:text-white">
-          {payment.subscriptionName}
-        </Text>
-        <Text className="text-xs text-foreground/45">
-          {payment.categoryNameSnapshot} · {formatYmd(payment.billingDate)}
-        </Text>
-      </View>
-      <Text
-        className="text-sm font-semibold text-black dark:text-white"
-        style={{ fontVariant: ["tabular-nums"] }}
-      >
-        {amountLabel}
-      </Text>
-    </View>
-  );
-}
-
 export default function StatisticsRoute() {
   const [subscriptions, setSubscriptions] = useState<
     SubscriptionWithCategory[] | null
@@ -196,11 +133,10 @@ export default function StatisticsRoute() {
         <View className="flex-1 items-center justify-center px-8">
           <View className="items-center gap-2">
             <Text className="text-base font-medium text-black dark:text-white">
-              아직 통계에 표시할 구독이 없습니다.
+              아직 볼 수 있는 통계가 없어요.
             </Text>
             <Text className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-              구독을 추가하면 최근 결제 추이와 카테고리별 소비를 여기서 볼 수
-              있습니다.
+              구독을 추가하면 결제 흐름과 지출 패턴을 한눈에 볼 수 있어요.
             </Text>
           </View>
         </View>
@@ -215,36 +151,46 @@ export default function StatisticsRoute() {
             <>
               <View className="flex-row gap-3">
                 <SubscriptionStatisticsSummaryTile
-                  label="활성 구독"
+                  label="이용 중인 구독"
                   value={`${overview.activeSubscriptionCount}개`}
                   tone="success"
                 />
                 <SubscriptionStatisticsSummaryTile
-                  label="이번 달 남은 결제액"
-                  value={formatAmount(overview.remainingThisMonthTotal)}
+                  label="지금까지 결제"
+                  value={formatAmount(overview.lifetimePaidTotal)}
                 />
               </View>
 
               <View className="flex-row gap-3">
                 <SubscriptionStatisticsSummaryTile
-                  label="이번 달 전체 결제액"
-                  value={formatAmount(overview.fullThisMonthTotal)}
+                  label="이번 달 남은 결제"
+                  value={formatAmount(overview.remainingThisMonthTotal)}
                 />
                 <SubscriptionStatisticsSummaryTile
-                  label="누적 결제액"
-                  value={formatAmount(overview.lifetimePaidTotal)}
+                  label="이번 달 전체 결제"
+                  value={formatAmount(overview.fullThisMonthTotal)}
                 />
               </View>
 
-              <SectionCard title="결제 추이" description="최근 6개월 결제액">
+              <View className="flex-row gap-3">
+                <SubscriptionStatisticsSummaryTile
+                  label="앞으로 12개월 예정"
+                  value={formatAmount(overview.nextTwelveMonthsScheduledTotal)}
+                />
+              </View>
+
+              <SectionCard
+                title="결제 흐름"
+                description="최근 6개월 동안 얼마나 결제했는지 볼 수 있어요."
+              >
                 <SubscriptionStatisticsTrendChart
                   points={overview.recentSixMonthTrend}
                 />
               </SectionCard>
 
               <SectionCard
-                title="카테고리별 소비"
-                description="최근 6개월 기준"
+                title="카테고리별 지출"
+                description="어디에 가장 많이 쓰는지 한눈에 볼 수 있어요."
               >
                 <View className="gap-4">
                   {overview.categoryBreakdown.length > 0 ? (
@@ -252,36 +198,14 @@ export default function StatisticsRoute() {
                       <BreakdownRow
                         key={item.id}
                         label={item.label}
-                        countLabel={`${item.count}회 결제`}
+                        countLabel={`결제 ${item.count}번`}
                         totalLabel={formatAmount(item.total)}
                         ratio={item.share}
                       />
                     ))
                   ) : (
                     <Text className="text-sm text-foreground/50">
-                      아직 집계할 결제 이력이 없습니다.
-                    </Text>
-                  )}
-                </View>
-              </SectionCard>
-
-              <SectionCard title="구독 분포">
-                <View className="gap-3">
-                  <Text className="text-sm font-medium text-foreground/55">
-                    결제 주기
-                  </Text>
-                  {overview.billingCycleDistribution.length > 0 ? (
-                    overview.billingCycleDistribution.map((item) => (
-                      <DistributionRow
-                        key={item.label}
-                        label={item.label}
-                        count={item.count}
-                        total={overview.activeSubscriptionCount}
-                      />
-                    ))
-                  ) : (
-                    <Text className="text-sm text-foreground/50">
-                      활성 구독이 없습니다.
+                      아직 보여드릴 결제 내역이 없어요.
                     </Text>
                   )}
                 </View>

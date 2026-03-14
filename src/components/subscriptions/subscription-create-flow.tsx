@@ -40,6 +40,7 @@ const SPINNER_PICKER_WIDTH = 320;
 const CUSTOM_TEMPLATE_VALUE = "__custom";
 const STEP_COUNT = 5;
 const FLOATING_CTA_BOTTOM_PADDING = 156;
+const TEMPLATE_STEP_BOTTOM_PADDING = 108;
 
 const STEP_CONTENT = [
   {
@@ -220,7 +221,7 @@ export function SubscriptionCreateFlow({
         width: screenWidth,
         flex: 1,
         paddingTop: headerHeight + 15,
-        paddingBottom: FLOATING_CTA_BOTTOM_PADDING,
+        paddingBottom: TEMPLATE_STEP_BOTTOM_PADDING,
       }}
       className="flex-1 px-4"
     >
@@ -665,6 +666,7 @@ export function SubscriptionCreateFlow({
                 return;
               }
 
+              Keyboard.dismiss();
               onStepChange(currentStep + 1);
             }}
           >

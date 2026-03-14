@@ -14,9 +14,9 @@ import { Linking } from "react-native";
 
 export const BILLING_REMINDER_WINDOW_DAYS = 60;
 
-const BILLING_REMINDER_NOTIFICATION_PREFIX = "subak.billing-reminder.";
+const BILLING_REMINDER_NOTIFICATION_PREFIX = "moss.billing-reminder.";
 const TEST_BILLING_REMINDER_NOTIFICATION_PREFIX =
-  "subak.test.billing-reminder.";
+  "moss.test.billing-reminder.";
 const BILLING_REMINDER_NOTIFICATION_TYPE = "billing-reminder";
 const BILLING_REMINDER_HOUR = 10;
 const BILLING_REMINDER_NOTIFICATION_TITLE = "내일 결제 예정";

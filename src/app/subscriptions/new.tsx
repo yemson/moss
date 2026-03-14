@@ -212,6 +212,7 @@ export default function NewSubscriptionRoute() {
               <Pressable
                 onPressIn={hapticImpactLight}
                 onPress={() => {
+                  Keyboard.dismiss();
                   setCurrentStep((current) => Math.max(0, current - 1));
                 }}
                 hitSlop={8}
