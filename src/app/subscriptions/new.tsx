@@ -1,5 +1,6 @@
 import { SubscriptionCreateFlow } from "@/components/subscriptions/subscription-create-flow";
 import { useAppSettings } from "@/lib/app-settings";
+import { track } from "@/lib/analytics";
 import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
 import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
 import { getSubscriptionTemplate } from "@/lib/subscription-templates";
@@ -56,6 +57,10 @@ export default function NewSubscriptionRoute() {
         setCategories([]);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    track("subscription_create_started");
   }, []);
 
   const categoryOptions = useMemo<SelectOption[]>(
@@ -120,6 +125,11 @@ export default function NewSubscriptionRoute() {
         memo: memo.trim() || null,
       });
       await syncSubscriptionNotifications(notificationsEnabled);
+      track("subscription_created", {
+        billing_cycle: billingCycle,
+        category_id: categoryId,
+        has_template: templateKey != null,
+      });
 
       hapticSelection();
       router.back();
@@ -150,6 +160,11 @@ export default function NewSubscriptionRoute() {
     }
 
     const template = getSubscriptionTemplate(nextTemplateKey);
+    track("subscription_template_selected", {
+      category_id: template?.categoryId ?? null,
+      has_template: nextTemplateKey != null,
+    });
+
     if (!template) {
       return;
     }
@@ -176,6 +191,9 @@ export default function NewSubscriptionRoute() {
     }
 
     if (!hasAdvancedPastTemplateStep) {
+      track("subscription_create_cancelled", {
+        step: currentStep + 1,
+      });
       router.back();
       return;
     }
@@ -189,6 +207,9 @@ export default function NewSubscriptionRoute() {
         text: "취소하기",
         style: "destructive",
         onPress: () => {
+          track("subscription_create_cancelled", {
+            step: currentStep + 1,
+          });
           Keyboard.dismiss();
           router.back();
         },

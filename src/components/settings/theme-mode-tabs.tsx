@@ -1,4 +1,5 @@
 import { useAppSettings } from "@/lib/app-settings";
+import { track } from "@/lib/analytics";
 import { hapticSelection } from "@/lib/haptics";
 import { isThemeMode, type ThemeMode } from "@/lib/theme-mode";
 import { Tabs } from "heroui-native";
@@ -27,7 +28,10 @@ export function ThemeModeTabs() {
       <Tabs
         value={themeMode}
         onValueChange={(nextValue) => {
-          if (isThemeMode(nextValue)) {
+          if (isThemeMode(nextValue) && nextValue !== themeMode) {
+            track("theme_mode_changed", {
+              theme_mode: nextValue,
+            });
             setThemeMode(nextValue);
           }
         }}

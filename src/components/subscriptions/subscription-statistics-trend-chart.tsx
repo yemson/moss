@@ -1,58 +1,40 @@
 import type { MonthlySpendPoint } from "@/lib/subscription-statistics";
 import { formatAmount } from "@/lib/subscription-format";
+import { Circle, Line as SkiaLine } from "@shopify/react-native-skia";
 import { useMemo } from "react";
-import { Text, View, useWindowDimensions } from "react-native";
-import Svg, { Circle, Line, Path } from "react-native-svg";
+import { Text, View } from "react-native";
+import { CartesianChart, Line } from "victory-native";
 
 interface SubscriptionStatisticsTrendChartProps {
   points: MonthlySpendPoint[];
 }
 
-const CHART_HEIGHT = 150;
-const CHART_PADDING_X = 10;
-const CHART_PADDING_Y = 12;
+type ChartDatum = {
+  label: string;
+  total: number;
+};
 
-function buildPathData(points: { x: number; y: number }[]) {
-  return points
-    .map(
-      (point, index) =>
-        `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`,
-    )
-    .join(" ");
-}
+const CHART_HEIGHT = 150;
+const GRID_LINE_RATIOS = [0.25, 0.5, 0.75] as const;
+const CHART_DATA_FALLBACK: ChartDatum = {
+  label: "__fallback__",
+  total: 0,
+};
 
 export function SubscriptionStatisticsTrendChart({
   points,
 }: SubscriptionStatisticsTrendChartProps) {
-  const { width: screenWidth } = useWindowDimensions();
-  const chartWidth = Math.max(240, screenWidth - 98);
+  const chartData = useMemo(
+    () =>
+      points.length > 0
+        ? points.map<ChartDatum>((point) => ({
+            label: point.label,
+            total: point.total,
+          }))
+        : [CHART_DATA_FALLBACK],
+    [points],
+  );
   const maxValue = Math.max(...points.map((point) => point.total), 0);
-  const minValue = 0;
-  const range = Math.max(maxValue - minValue, 1);
-
-  const chartPoints = useMemo(() => {
-    if (points.length === 0) {
-      return [];
-    }
-
-    const drawableWidth = chartWidth - CHART_PADDING_X * 2;
-    const drawableHeight = CHART_HEIGHT - CHART_PADDING_Y * 2;
-
-    return points.map((point, index) => {
-      const x =
-        points.length === 1
-          ? chartWidth / 2
-          : CHART_PADDING_X + (drawableWidth * index) / (points.length - 1);
-      const y =
-        CHART_PADDING_Y +
-        drawableHeight -
-        ((point.total - minValue) / range) * drawableHeight;
-
-      return { x, y };
-    });
-  }, [chartWidth, minValue, points, range]);
-
-  const pathData = chartPoints.length > 0 ? buildPathData(chartPoints) : "";
   const maxLabel = formatAmount(maxValue);
 
   return (
@@ -68,55 +50,67 @@ export function SubscriptionStatisticsTrendChart({
       </View>
 
       <View className="rounded-3xl bg-surface-secondary/70 px-3 py-3">
-        <Svg width={chartWidth} height={CHART_HEIGHT}>
-          {[0.25, 0.5, 0.75].map((ratio) => {
-            const y =
-              CHART_PADDING_Y + (CHART_HEIGHT - CHART_PADDING_Y * 2) * ratio;
+        <View style={{ height: CHART_HEIGHT }}>
+          <CartesianChart<ChartDatum, "label", "total">
+            data={chartData}
+            xKey="label"
+            yKeys={["total"]}
+            padding={{ top: 12, right: 10, bottom: 12, left: 10 }}
+            domainPadding={{ left: 12, right: 12 }}
+          >
+            {({ chartBounds, points: chartPoints }) => (
+              <>
+                {GRID_LINE_RATIOS.map((ratio) => {
+                  const y =
+                    chartBounds.top +
+                    (chartBounds.bottom - chartBounds.top) * ratio;
 
-            return (
-              <Line
-                key={ratio}
-                x1={CHART_PADDING_X}
-                y1={y}
-                x2={chartWidth - CHART_PADDING_X}
-                y2={y}
-                stroke="rgba(115, 115, 115, 0.16)"
-                strokeWidth={1}
-              />
-            );
-          })}
+                  return (
+                    <SkiaLine
+                      key={ratio}
+                      p1={{ x: chartBounds.left, y }}
+                      p2={{ x: chartBounds.right, y }}
+                      color="rgba(115, 115, 115, 0.16)"
+                      strokeWidth={1}
+                    />
+                  );
+                })}
 
-          {chartPoints.length > 0 && (
-            <Path
-              d={pathData}
-              fill="none"
-              stroke="#16A34A"
-              strokeWidth={3}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
+                <Line
+                  points={chartPoints.total}
+                  color="#16A34A"
+                  strokeWidth={3}
+                  curveType="monotoneX"
+                  animate={{ type: "timing", duration: 250 }}
+                />
 
-          {chartPoints.map((point, index) => (
-            <Circle
-              key={`${points[index]?.monthKey ?? index}-dot`}
-              cx={point.x}
-              cy={point.y}
-              r={4}
-              fill="#16A34A"
-            />
-          ))}
-        </Svg>
+                {chartPoints.total.map((point, index) => {
+                  if (typeof point.y !== "number") {
+                    return null;
+                  }
 
-        <View className="mt-2 flex-row justify-between">
+                  return (
+                    <Circle
+                      key={`${String(point.xValue)}-${index}`}
+                      cx={point.x}
+                      cy={point.y}
+                      r={4}
+                      color="#16A34A"
+                    />
+                  );
+                })}
+              </>
+            )}
+          </CartesianChart>
+        </View>
+
+        <View className="mt-2 flex-row justify-between px-2 w-full">
           {points.map((point) => (
-            <Text
-              key={point.monthKey}
-              className="text-[11px] text-foreground/45"
-              style={{ width: `${100 / Math.max(points.length, 10)}%` }}
-            >
-              {point.label}
-            </Text>
+            <View key={point.monthKey}>
+              <Text className="text-[11px] text-foreground/45">
+                {point.label}
+              </Text>
+            </View>
           ))}
         </View>
       </View>

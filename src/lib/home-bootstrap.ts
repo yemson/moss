@@ -1,10 +1,13 @@
 import {
+  listSubscriptionPaymentLogs,
   listSubscriptions,
+  type SubscriptionPaymentLog,
   type SubscriptionWithCategory,
 } from "@/lib/subscription-store";
 
 export interface InitialHomeData {
   subscriptions: SubscriptionWithCategory[];
+  paymentLogs: SubscriptionPaymentLog[];
 }
 
 let initialHomeData: InitialHomeData | null = null;
@@ -17,10 +20,14 @@ export async function prepareInitialHomeData(): Promise<InitialHomeData> {
 
   if (!initialHomeDataPromise) {
     initialHomeDataPromise = (async () => {
-      const subscriptions = await listSubscriptions({ isActive: true });
+      const [subscriptions, paymentLogs] = await Promise.all([
+        listSubscriptions({ isActive: true }),
+        listSubscriptionPaymentLogs({ sortDirection: "desc" }),
+      ]);
 
       const nextInitialHomeData = {
         subscriptions,
+        paymentLogs,
       };
 
       initialHomeData = nextInitialHomeData;

@@ -99,8 +99,12 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "bf20214f-3aaa-484b-a453-e65d9ea5f691"
+        "projectId": "891020d1-ed38-46db-9ab5-c6f87ad64e85"
       }
+    },
+    "owner": "yemson",
+    "android": {
+      "package": "com.yemson.moss"
     }
   }
 }

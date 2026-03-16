@@ -1,4 +1,5 @@
 import { useAppSettings } from "@/lib/app-settings";
+import { track } from "@/lib/analytics";
 import { consumeInitialHomeData } from "@/lib/home-bootstrap";
 import { SubscriptionCard } from "@/components/subscriptions/subscription-card";
 import { SubscriptionCategoryFilter } from "@/components/subscriptions/subscription-category-filter";
@@ -6,10 +7,14 @@ import { SubscriptionSummaryNativeAd } from "@/components/subscriptions/subscrip
 import { SubscriptionSortSelect } from "@/components/subscriptions/subscription-sort-select";
 import { SubscriptionSummaryCard } from "@/components/subscriptions/subscription-summary-card";
 import { hapticImpactLight } from "@/lib/haptics";
+import { getHomeMonthlyChangeDescription } from "@/lib/subscription-home-insights";
 import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
 import {
   deleteSubscription,
+  listSubscriptionPaymentLogs,
   listSubscriptions,
+  syncSubscriptionPaymentLogs,
+  type SubscriptionPaymentLog,
   type SubscriptionWithCategory,
 } from "@/lib/subscription-store";
 import { useFocusEffect } from "@react-navigation/native";
@@ -84,6 +89,9 @@ export default function HomeRoute() {
   const [subscriptions, setSubscriptions] = useState<
     SubscriptionWithCategory[] | null
   >(() => initialHomeData?.subscriptions ?? null);
+  const [paymentLogs, setPaymentLogs] = useState<
+    SubscriptionPaymentLog[] | null
+  >(() => initialHomeData?.paymentLogs ?? null);
   const [selectedCategoryKey, setSelectedCategoryKey] =
     useState<string>(ALL_CATEGORY_KEY);
   const [sortOption, setSortOption] = useState<SortOption>(SORT_OPTIONS[0]);
@@ -92,20 +100,26 @@ export default function HomeRoute() {
   >({});
   const openedSwipeableIdRef = useRef<string | null>(null);
 
-  const loadSubscriptions = useCallback(async () => {
+  const loadHomeData = useCallback(async () => {
     try {
-      const nextSubscriptions = await listSubscriptions({ isActive: true });
+      await syncSubscriptionPaymentLogs();
+      const [nextSubscriptions, nextPaymentLogs] = await Promise.all([
+        listSubscriptions({ isActive: true }),
+        listSubscriptionPaymentLogs({ sortDirection: "desc" }),
+      ]);
       setSubscriptions(nextSubscriptions);
+      setPaymentLogs(nextPaymentLogs);
     } catch (error) {
-      console.error("Failed to load subscriptions:", error);
+      console.error("Failed to load home data:", error);
       setSubscriptions((currentSubscriptions) => currentSubscriptions ?? []);
+      setPaymentLogs((currentPaymentLogs) => currentPaymentLogs ?? []);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      void loadSubscriptions();
-    }, [loadSubscriptions]),
+      void loadHomeData();
+    }, [loadHomeData]),
   );
 
   const getSwipeableRef = useCallback((id: string) => {
@@ -150,11 +164,16 @@ export default function HomeRoute() {
   }, []);
 
   const handleDeleteConfirmed = useCallback(
-    async (subscriptionId: string) => {
+    async (subscription: SubscriptionWithCategory) => {
       try {
-        await deleteSubscription(subscriptionId);
+        await deleteSubscription(subscription.id);
         await syncSubscriptionNotifications(notificationsEnabled);
-        await loadSubscriptions();
+        await loadHomeData();
+        track("subscription_deleted", {
+          billing_cycle: subscription.billingCycle,
+          category_id: subscription.categoryId,
+          source: "home",
+        });
       } catch (error) {
         const message =
           error instanceof Error
@@ -163,7 +182,7 @@ export default function HomeRoute() {
         Alert.alert("오류", message);
       }
     },
-    [loadSubscriptions, notificationsEnabled],
+    [loadHomeData, notificationsEnabled],
   );
 
   const handleDeletePress = useCallback(
@@ -174,7 +193,7 @@ export default function HomeRoute() {
           text: "삭제",
           style: "destructive",
           onPress: () => {
-            void handleDeleteConfirmed(subscription.id);
+            void handleDeleteConfirmed(subscription);
           },
         },
       ]);
@@ -209,6 +228,13 @@ export default function HomeRoute() {
     () => sortSubscriptions(filteredSubscriptions, sortOption.value),
     [filteredSubscriptions, sortOption.value],
   );
+  const summaryChangeDescription = useMemo(() => {
+    if (!paymentLogs) {
+      return null;
+    }
+
+    return getHomeMonthlyChangeDescription(paymentLogs);
+  }, [paymentLogs]);
 
   useEffect(() => {
     const hasSelectedCategory =
@@ -234,6 +260,9 @@ export default function HomeRoute() {
           <Pressable
             onPressIn={hapticImpactLight}
             onPress={() => {
+              track("statistics_opened", {
+                source: "home",
+              });
               router.push("/statistics");
 
               setTimeout(() => {
@@ -253,6 +282,9 @@ export default function HomeRoute() {
           <Pressable
             onPressIn={hapticImpactLight}
             onPress={() => {
+              track("settings_opened", {
+                source: "home",
+              });
               router.navigate("/settings");
 
               setTimeout(() => {
@@ -290,6 +322,11 @@ export default function HomeRoute() {
               onSwipeableWillOpen={() => handleSwipeableWillOpen(item.id)}
               onSwipeableClose={() => handleSwipeableClose(item.id)}
               onPress={() => {
+                track("subscription_card_opened", {
+                  billing_cycle: item.billingCycle,
+                  category_id: item.categoryId,
+                  screen: "home",
+                });
                 router.navigate(`/subscriptions/${item.id}`);
               }}
               onEdit={() => router.navigate(`/subscriptions/${item.id}/edit`)}
@@ -307,7 +344,10 @@ export default function HomeRoute() {
           }}
           ListHeaderComponent={
             <>
-              <SubscriptionSummaryCard subscriptions={subscriptions ?? []} />
+              <SubscriptionSummaryCard
+                subscriptions={subscriptions ?? []}
+                changeDescription={summaryChangeDescription}
+              />
               <SubscriptionSummaryNativeAd />
 
               <Text className="mb-3 mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
@@ -318,13 +358,28 @@ export default function HomeRoute() {
                 <SubscriptionCategoryFilter
                   categories={categoryFilters}
                   selectedCategoryKey={selectedCategoryKey}
-                  onSelectionChange={setSelectedCategoryKey}
+                  onSelectionChange={(nextCategoryKey) => {
+                    setSelectedCategoryKey(nextCategoryKey);
+                    track("home_filter_changed", {
+                      category_id:
+                        nextCategoryKey === ALL_CATEGORY_KEY
+                          ? null
+                          : nextCategoryKey,
+                      filter_scope:
+                        nextCategoryKey === ALL_CATEGORY_KEY
+                          ? "all"
+                          : "specific",
+                    });
+                  }}
                 />
                 <SubscriptionSortSelect
                   value={sortOption}
                   options={SORT_OPTIONS}
                   onValueChange={(nextSortOption) => {
                     setSortOption(nextSortOption as SortOption);
+                    track("home_sort_changed", {
+                      sort_key: nextSortOption.value,
+                    });
                     consumeOpenedSwipeable();
                   }}
                 />

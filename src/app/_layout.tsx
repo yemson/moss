@@ -3,8 +3,14 @@ import {
   DEFAULT_APP_SETTINGS,
   loadAppSettings,
   persistAppSettings,
+  useAppSettings,
   type AppSettings,
 } from "@/lib/app-settings";
+import {
+  flushAnalytics,
+  initAnalytics,
+  trackScreen,
+} from "@/lib/analytics";
 import { prepareInitialHomeData } from "@/lib/home-bootstrap";
 import {
   initializeNotificationsOnAppStart,
@@ -21,11 +27,11 @@ import {
 } from "@react-navigation/native";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
-import { Stack, useRouter } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import type { HeroUINativeConfig } from "heroui-native";
 import { HeroUINativeProvider } from "heroui-native";
-import { useEffect, useMemo, useState } from "react";
-import { Platform } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind, useUniwind } from "uniwind";
 import "../global.css";
@@ -44,6 +50,93 @@ const config: HeroUINativeConfig = {
     maxFontSizeMultiplier: 1.5,
   },
 };
+
+function getScreenName(pathname: string) {
+  if (pathname === "/") {
+    return "home";
+  }
+
+  if (pathname === "/onboarding") {
+    return "onboarding";
+  }
+
+  if (pathname === "/statistics") {
+    return "statistics";
+  }
+
+  if (pathname === "/settings") {
+    return "settings";
+  }
+
+  if (pathname === "/subscriptions/new") {
+    return "subscription_create";
+  }
+
+  if (
+    pathname.startsWith("/subscriptions/") &&
+    pathname.endsWith("/edit")
+  ) {
+    return "subscription_edit";
+  }
+
+  if (pathname.startsWith("/subscriptions/")) {
+    return "subscription_detail";
+  }
+
+  return null;
+}
+
+function AppStack({ backgroundColor }: { backgroundColor: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { hasCompletedOnboarding } = useAppSettings();
+  const lastTrackedPathnameRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!hasCompletedOnboarding && pathname !== "/onboarding") {
+      router.replace("/onboarding");
+      return;
+    }
+
+    if (hasCompletedOnboarding && pathname === "/onboarding") {
+      router.replace("/");
+    }
+  }, [hasCompletedOnboarding, pathname, router]);
+
+  useEffect(() => {
+    const screenName = getScreenName(pathname);
+    if (!screenName || lastTrackedPathnameRef.current === pathname) {
+      return;
+    }
+
+    lastTrackedPathnameRef.current = pathname;
+    trackScreen(screenName);
+  }, [pathname]);
+
+  return (
+    <Stack
+      screenOptions={{
+        headerTransparent: true,
+        contentStyle: { backgroundColor },
+      }}
+    >
+      <Stack.Screen
+        name="onboarding"
+        options={{
+          headerShown: false,
+          animation: "fade",
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="subscriptions/new"
+        options={{
+          presentation: "modal",
+        }}
+      />
+    </Stack>
+  );
+}
 
 export default function TabLayout() {
   const router = useRouter();
@@ -131,6 +224,26 @@ export default function TabLayout() {
   }, []);
 
   useEffect(() => {
+    if (!isSettingsReady) {
+      return;
+    }
+
+    void initAnalytics();
+  }, [isSettingsReady]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "inactive" || nextState === "background") {
+        flushAnalytics();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const notificationData = response.notification.request.content.data as
@@ -167,19 +280,7 @@ export default function TabLayout() {
       <ThemeProvider value={navigationTheme}>
         <HeroUINativeProvider config={config}>
           <AppSettingsProvider initialSettings={initialSettings}>
-            <Stack
-              screenOptions={{
-                headerTransparent: true,
-                contentStyle: { backgroundColor },
-              }}
-            >
-              <Stack.Screen
-                name="subscriptions/new"
-                options={{
-                  presentation: "modal",
-                }}
-              />
-            </Stack>
+            <AppStack backgroundColor={backgroundColor} />
           </AppSettingsProvider>
         </HeroUINativeProvider>
       </ThemeProvider>

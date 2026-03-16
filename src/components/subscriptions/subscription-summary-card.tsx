@@ -8,6 +8,7 @@ import { Text, View } from "react-native";
 
 interface SubscriptionSummaryCardProps {
   subscriptions: SubscriptionWithCategory[];
+  changeDescription?: string | null;
 }
 
 function getMonthTitle(date: Date) {
@@ -76,6 +77,7 @@ function getFullMonthlyTotal(
 
 export function SubscriptionSummaryCard({
   subscriptions,
+  changeDescription,
 }: SubscriptionSummaryCardProps) {
   const now = new Date();
   const monthlyTotal = getUpcomingMonthlyTotal(subscriptions, now);
@@ -99,6 +101,11 @@ export function SubscriptionSummaryCard({
               / {fullMonthlyTotalLabel}
             </Text>
           </View>
+          {changeDescription ? (
+            <Text className="mt-2 text-sm text-foreground/50">
+              {changeDescription}
+            </Text>
+          ) : null}
         </Card.Body>
       </View>
     </Card>

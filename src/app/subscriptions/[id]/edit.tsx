@@ -1,5 +1,6 @@
 import { SubscriptionForm } from "@/components/subscriptions/subscription-form";
 import { useAppSettings } from "@/lib/app-settings";
+import { track } from "@/lib/analytics";
 import { hapticImpactLight, hapticSelection } from "@/lib/haptics";
 import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
 import {
@@ -44,6 +45,7 @@ export default function EditSubscriptionRoute() {
   const [loadedSubscription, setLoadedSubscription] = useState<
     SubscriptionWithCategory | null | undefined
   >(undefined);
+  const hasTrackedEditStartedRef = useRef(false);
 
   useEffect(() => {
     void (async () => {
@@ -101,6 +103,19 @@ export default function EditSubscriptionRoute() {
     setBillingDateValue(billingDateAsDate);
     setBillingDateDraft(billingDateAsDate);
     initializedSubscriptionIdRef.current = loadedSubscription.id;
+  }, [loadedSubscription]);
+
+  useEffect(() => {
+    if (!loadedSubscription || hasTrackedEditStartedRef.current) {
+      return;
+    }
+
+    hasTrackedEditStartedRef.current = true;
+    track("subscription_edit_started", {
+      billing_cycle: loadedSubscription.billingCycle,
+      category_id: loadedSubscription.categoryId,
+      has_template: loadedSubscription.templateKey != null,
+    });
   }, [loadedSubscription]);
 
   const handleBillingDateSheetOpenChange = (nextOpen: boolean) => {
@@ -163,6 +178,11 @@ export default function EditSubscriptionRoute() {
         memo: memo.trim() || null,
       });
       await syncSubscriptionNotifications(notificationsEnabled);
+      track("subscription_updated", {
+        billing_cycle: billingCycle,
+        category_id: categoryId,
+        has_template: loadedSubscription?.templateKey != null,
+      });
 
       hapticSelection();
       router.back();

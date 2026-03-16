@@ -1,4 +1,5 @@
 import { useAppSettings } from "@/lib/app-settings";
+import { track } from "@/lib/analytics";
 import { ThemeModeTabs } from "@/components/settings/theme-mode-tabs";
 import { hapticSelection } from "@/lib/haptics";
 import {
@@ -6,6 +7,7 @@ import {
   openSystemNotificationSettings,
   syncSubscriptionNotifications,
 } from "@/lib/subscription-notifications";
+import { seedScreenshotSubscriptions } from "@/lib/subscription-store";
 import { useFocusEffect } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Stack, useRouter } from "expo-router";
@@ -23,7 +25,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 
 interface SettingItem {
   id: string;
@@ -42,9 +44,14 @@ interface SettingSection {
 export default function SettingsRoute() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
-  const { notificationsEnabled, setNotificationsEnabled } = useAppSettings();
+  const {
+    notificationsEnabled,
+    setNotificationsEnabled,
+    setHasCompletedOnboarding,
+  } = useAppSettings();
   const [isNotificationPermissionGranted, setIsNotificationPermissionGranted] =
     useState<boolean | null>(null);
+  const [isSeedingScreenshotData, setIsSeedingScreenshotData] = useState(false);
 
   const loadNotificationPermission = useCallback(async () => {
     const nextGranted = await getNotificationPermissionGrantedAsync();
@@ -66,9 +73,56 @@ export default function SettingsRoute() {
     async (nextEnabled: boolean) => {
       setNotificationsEnabled(nextEnabled);
       await syncSubscriptionNotifications(nextEnabled);
+      track("notification_setting_changed", {
+        notification_enabled: nextEnabled,
+      });
     },
     [setNotificationsEnabled],
   );
+
+  const handleSeedScreenshotData = useCallback(async () => {
+    setIsSeedingScreenshotData(true);
+
+    try {
+      await seedScreenshotSubscriptions();
+      await syncSubscriptionNotifications(notificationsEnabled);
+
+      Alert.alert("완료", "스크린샷용 데이터를 채웠어요.", [
+        {
+          text: "홈으로 이동",
+          onPress: () => {
+            router.replace("/");
+          },
+        },
+      ]);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "스크린샷용 데이터를 채우지 못했습니다.";
+
+      Alert.alert("오류", message);
+    } finally {
+      setIsSeedingScreenshotData(false);
+    }
+  }, [notificationsEnabled, router]);
+
+  const handleSeedScreenshotDataPress = useCallback(() => {
+    Alert.alert(
+      "스크린샷 데이터 채우기",
+      "현재 구독과 통계를 지우고 샘플 데이터로 교체할까요?",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "교체하기",
+          style: "destructive",
+          onPress: () => {
+            void handleSeedScreenshotData();
+          },
+        },
+      ],
+    );
+  }, [handleSeedScreenshotData]);
 
   const sections = useMemo<SettingSection[]>(
     () => [
@@ -129,6 +183,31 @@ export default function SettingsRoute() {
           },
         ],
       },
+      {
+        id: "about",
+        title: "앱 안내",
+        items: [
+          {
+            id: "onboarding",
+            title: "온보딩 다시 보기",
+            description: "앱 소개 화면을 처음부터 다시 확인합니다.",
+            suffix: (
+              <Button
+                variant="secondary"
+                size="sm"
+                onPressIn={hapticSelection}
+                onPress={() => {
+                  track("onboarding_reopened");
+                  setHasCompletedOnboarding(false);
+                  router.replace("/onboarding");
+                }}
+              >
+                <Button.Label>다시 보기</Button.Label>
+              </Button>
+            ),
+          },
+        ],
+      },
       ...(__DEV__
         ? [
             {
@@ -171,16 +250,39 @@ export default function SettingsRoute() {
                     </Button>
                   ),
                 },
+                {
+                  id: "screenshot-seed",
+                  title: "스크린샷 데이터",
+                  description:
+                    "현재 구독을 지우고 샘플 데이터를 채웁니다.",
+                  icon: FlaskConicalIcon,
+                  suffix: (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      isDisabled={isSeedingScreenshotData}
+                      onPressIn={hapticSelection}
+                      onPress={handleSeedScreenshotDataPress}
+                    >
+                      <Button.Label>
+                        {isSeedingScreenshotData ? "채우는 중" : "채우기"}
+                      </Button.Label>
+                    </Button>
+                  ),
+                },
               ],
             },
           ]
         : []),
     ],
     [
+      handleSeedScreenshotDataPress,
       handleNotificationsEnabledChange,
       isNotificationPermissionGranted,
+      isSeedingScreenshotData,
       notificationsEnabled,
       router,
+      setHasCompletedOnboarding,
     ],
   );
 

@@ -19,15 +19,18 @@ export interface AppSettings {
   themeMode: ThemeMode;
   notificationsEnabled: boolean;
   notificationsPermissionPrompted: boolean;
+  hasCompletedOnboarding: boolean;
 }
 
 interface AppSettingsContextValue {
   themeMode: ThemeMode;
   notificationsEnabled: boolean;
   notificationsPermissionPrompted: boolean;
+  hasCompletedOnboarding: boolean;
   setThemeMode: (nextMode: ThemeMode) => void;
   setNotificationsEnabled: (nextEnabled: boolean) => void;
   setNotificationsPermissionPrompted: (nextPrompted: boolean) => void;
+  setHasCompletedOnboarding: (nextCompleted: boolean) => void;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
@@ -36,6 +39,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   themeMode: DEFAULT_THEME_MODE,
   notificationsEnabled: false,
   notificationsPermissionPrompted: false,
+  hasCompletedOnboarding: false,
 };
 
 function parseAppSettings(rawSettings: string | null): AppSettings {
@@ -48,6 +52,7 @@ function parseAppSettings(rawSettings: string | null): AppSettings {
       themeMode?: unknown;
       notificationsEnabled?: unknown;
       notificationsPermissionPrompted?: unknown;
+      hasCompletedOnboarding?: unknown;
     };
 
     return {
@@ -64,6 +69,10 @@ function parseAppSettings(rawSettings: string | null): AppSettings {
         typeof parsedSettings.notificationsPermissionPrompted === "boolean"
           ? parsedSettings.notificationsPermissionPrompted
           : DEFAULT_APP_SETTINGS.notificationsPermissionPrompted,
+      hasCompletedOnboarding:
+        typeof parsedSettings.hasCompletedOnboarding === "boolean"
+          ? parsedSettings.hasCompletedOnboarding
+          : DEFAULT_APP_SETTINGS.hasCompletedOnboarding,
     };
   } catch (error) {
     console.error("Failed to parse app settings:", error);
@@ -150,15 +159,32 @@ export function AppSettingsProvider({
     [persistSettings],
   );
 
+  const setHasCompletedOnboarding = useCallback(
+    (nextCompleted: boolean) => {
+      setSettings((currentSettings) => {
+        const nextSettings = {
+          ...currentSettings,
+          hasCompletedOnboarding: nextCompleted,
+        };
+
+        persistSettings(nextSettings);
+        return nextSettings;
+      });
+    },
+    [persistSettings],
+  );
+
   return (
     <AppSettingsContext.Provider
       value={{
         themeMode: settings.themeMode,
         notificationsEnabled: settings.notificationsEnabled,
         notificationsPermissionPrompted: settings.notificationsPermissionPrompted,
+        hasCompletedOnboarding: settings.hasCompletedOnboarding,
         setThemeMode,
         setNotificationsEnabled,
         setNotificationsPermissionPrompted,
+        setHasCompletedOnboarding,
       }}
     >
       {children}

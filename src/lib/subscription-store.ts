@@ -1,4 +1,5 @@
 import { openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
+import { getSubscriptionTemplate } from "@/lib/subscription-templates";
 
 export type Currency = "KRW";
 export type BillingCycle = "monthly" | "yearly";
@@ -111,6 +112,16 @@ const PRESET_CATEGORIES: { id: string; name: string }[] = [
   { id: "cat_finance", name: "금융" },
   { id: "cat_etc", name: "기타" },
 ];
+
+interface ScreenshotSeedDefinition {
+  templateKey: string;
+  amount: number;
+  billingCycle: BillingCycle;
+  monthsAgo: number;
+  dayOffset: number;
+  notifyDayBefore: boolean;
+  memo?: string | null;
+}
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 let initializePromise: Promise<void> | null = null;
@@ -462,6 +473,188 @@ function toLocalDateString(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getLastDayOfMonthLocal(year: number, monthIndex: number): number {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function addMonthsLocal(date: Date, months: number): Date {
+  const targetMonth = date.getMonth() + months;
+  const targetYear = date.getFullYear() + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  const maxDay = getLastDayOfMonthLocal(targetYear, normalizedMonth);
+
+  return new Date(
+    targetYear,
+    normalizedMonth,
+    Math.min(date.getDate(), maxDay),
+  );
+}
+
+function getScreenshotSeedPastOffsets(baseDate: Date): number[] {
+  const maxPastDays = Math.max(0, baseDate.getDate() - 1);
+
+  if (maxPastDays === 0) {
+    return [0, 0, 0];
+  }
+
+  const candidates =
+    maxPastDays >= 13 ? [3, 8, 13] : maxPastDays >= 7 ? [2, 5, 7] : [1, 2, 3];
+
+  return candidates.map((candidate) => -Math.min(candidate, maxPastDays));
+}
+
+function getScreenshotSeedFutureOffsets(baseDate: Date): number[] {
+  const maxFutureDays =
+    getLastDayOfMonthLocal(baseDate.getFullYear(), baseDate.getMonth()) -
+    baseDate.getDate();
+
+  if (maxFutureDays <= 0) {
+    return [0, 0, 0, 0];
+  }
+
+  const candidates =
+    maxFutureDays >= 17
+      ? [2, 6, 11, 17]
+      : maxFutureDays >= 10
+        ? [1, 4, 7, 10]
+        : [1, 2, 3, 4];
+
+  return candidates.map((candidate) => Math.min(candidate, maxFutureDays));
+}
+
+function buildScreenshotSeedBillingDate(
+  baseDate: Date,
+  monthsAgo: number,
+  dayOffset: number,
+): string {
+  const offsetDate = new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate() + dayOffset,
+  );
+  const anchoredDate = addMonthsLocal(offsetDate, -monthsAgo);
+  return toLocalDateString(anchoredDate);
+}
+
+function getScreenshotSeedDefinitions(
+  baseDate: Date = new Date(),
+): ScreenshotSeedDefinition[] {
+  const pastOffsets = getScreenshotSeedPastOffsets(baseDate);
+  const futureOffsets = getScreenshotSeedFutureOffsets(baseDate);
+
+  return [
+    {
+      templateKey: "netflix",
+      amount: 17000,
+      billingCycle: "monthly",
+      monthsAgo: 14,
+      dayOffset: futureOffsets[0],
+      notifyDayBefore: true,
+      memo: "가족과 함께 보고 있어요.",
+    },
+    {
+      templateKey: "youtube-premium",
+      amount: 14900,
+      billingCycle: "monthly",
+      monthsAgo: 12,
+      dayOffset: pastOffsets[0],
+      notifyDayBefore: true,
+    },
+    {
+      templateKey: "icloud-plus",
+      amount: 4400,
+      billingCycle: "monthly",
+      monthsAgo: 10,
+      dayOffset: futureOffsets[1],
+      notifyDayBefore: false,
+    },
+    {
+      templateKey: "notion",
+      amount: 12000,
+      billingCycle: "monthly",
+      monthsAgo: 9,
+      dayOffset: futureOffsets[2],
+      notifyDayBefore: true,
+    },
+    {
+      templateKey: "melon",
+      amount: 10900,
+      billingCycle: "monthly",
+      monthsAgo: 11,
+      dayOffset: pastOffsets[1],
+      notifyDayBefore: false,
+    },
+    {
+      templateKey: "chatgpt-plus",
+      amount: 29000,
+      billingCycle: "monthly",
+      monthsAgo: 6,
+      dayOffset: futureOffsets[3],
+      notifyDayBefore: true,
+    },
+    {
+      templateKey: "naver-plus",
+      amount: 4900,
+      billingCycle: "monthly",
+      monthsAgo: 8,
+      dayOffset: pastOffsets[2],
+      notifyDayBefore: false,
+    },
+  ];
+}
+
+async function insertScreenshotSeedSubscription(
+  database: SQLiteDatabase,
+  definition: ScreenshotSeedDefinition,
+  baseDate: Date,
+  now: string,
+) {
+  const template = getSubscriptionTemplate(definition.templateKey);
+
+  if (!template) {
+    throw new Error(`Template not found for screenshot seed: ${definition.templateKey}`);
+  }
+
+  await database.runAsync(
+    `
+      INSERT INTO subscriptions (
+        id,
+        name,
+        templateKey,
+        amount,
+        currency,
+        billingCycle,
+        billingDate,
+        notifyDayBefore,
+        categoryId,
+        isActive,
+        memo,
+        createdAt,
+        updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      generateId("sub"),
+      template.name,
+      template.key,
+      definition.amount,
+      "KRW",
+      definition.billingCycle,
+      buildScreenshotSeedBillingDate(
+        baseDate,
+        definition.monthsAgo,
+        definition.dayOffset,
+      ),
+      definition.notifyDayBefore ? 1 : 0,
+      template.categoryId,
+      1,
+      normalizeMemo(definition.memo),
+      now,
+      now,
+    ],
+  );
 }
 
 function getLastDayOfMonthUtc(year: number, monthIndex: number): number {
@@ -1294,4 +1487,32 @@ export async function deleteSubscription(subscriptionId: string): Promise<void> 
   if (result.changes === 0) {
     throw new Error("Subscription not found.");
   }
+}
+
+export async function seedScreenshotSubscriptions(
+  baseDate: Date = new Date(),
+): Promise<void> {
+  await ensureInitialized();
+  const database = await getDatabase();
+  const now = nowIsoString();
+  const definitions = getScreenshotSeedDefinitions(baseDate);
+
+  await database.execAsync("BEGIN IMMEDIATE TRANSACTION");
+
+  try {
+    await database.runAsync(`DELETE FROM subscription_payment_logs`);
+    await database.runAsync(`DELETE FROM subscriptions`);
+    await database.runAsync(`DELETE FROM categories WHERE isPreset = 0`);
+
+    for (const definition of definitions) {
+      await insertScreenshotSeedSubscription(database, definition, baseDate, now);
+    }
+
+    await database.execAsync("COMMIT");
+  } catch (error) {
+    await database.execAsync("ROLLBACK");
+    throw error;
+  }
+
+  await syncSubscriptionPaymentLogs(baseDate);
 }

@@ -1,4 +1,5 @@
 import { useAppSettings } from "@/lib/app-settings";
+import { track } from "@/lib/analytics";
 import { SubscriptionStatisticsSummaryTile } from "@/components/subscriptions/subscription-statistics-summary-tile";
 import { SubscriptionStatisticsTrendChart } from "@/components/subscriptions/subscription-statistics-trend-chart";
 import { hapticImpactLight } from "@/lib/haptics";
@@ -176,6 +177,11 @@ export default function SubscriptionDetailRoute() {
           try {
             await deleteSubscription(subscription.id);
             await syncSubscriptionNotifications(notificationsEnabled);
+            track("subscription_deleted", {
+              billing_cycle: subscription.billingCycle,
+              category_id: subscription.categoryId,
+              source: "detail",
+            });
             router.replace("/");
           } catch (error) {
             const message =
