@@ -2,7 +2,7 @@ import type { MonthlySpendPoint } from "@/lib/subscription-statistics";
 import { formatAmount } from "@/lib/subscription-format";
 import { Circle, Line as SkiaLine } from "@shopify/react-native-skia";
 import { useMemo } from "react";
-import { Text, View } from "react-native";
+import { Text, useColorScheme, View } from "react-native";
 import { CartesianChart, Line } from "victory-native";
 
 interface SubscriptionStatisticsTrendChartProps {
@@ -24,6 +24,7 @@ const CHART_DATA_FALLBACK: ChartDatum = {
 export function SubscriptionStatisticsTrendChart({
   points,
 }: SubscriptionStatisticsTrendChartProps) {
+  const colorScheme = useColorScheme();
   const chartData = useMemo(
     () =>
       points.length > 0
@@ -36,6 +37,10 @@ export function SubscriptionStatisticsTrendChart({
   );
   const maxValue = Math.max(...points.map((point) => point.total), 0);
   const maxLabel = formatAmount(maxValue);
+  const gridLineColor =
+    colorScheme === "dark"
+      ? "rgba(163, 163, 163, 0.16)"
+      : "rgba(115, 115, 115, 0.08)";
 
   return (
     <View className="gap-3">
@@ -57,6 +62,9 @@ export function SubscriptionStatisticsTrendChart({
             yKeys={["total"]}
             padding={{ top: 12, right: 10, bottom: 12, left: 10 }}
             domainPadding={{ left: 12, right: 12 }}
+            xAxis={{ lineWidth: 0 }}
+            yAxis={[{ yKeys: ["total"], lineWidth: 0 }]}
+            frame={{ lineWidth: 0 }}
           >
             {({ chartBounds, points: chartPoints }) => (
               <>
@@ -70,7 +78,7 @@ export function SubscriptionStatisticsTrendChart({
                       key={ratio}
                       p1={{ x: chartBounds.left, y }}
                       p2={{ x: chartBounds.right, y }}
-                      color="rgba(115, 115, 115, 0.16)"
+                      color={gridLineColor}
                       strokeWidth={1}
                     />
                   );
