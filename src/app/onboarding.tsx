@@ -9,7 +9,16 @@ import { hapticSelection } from "@/lib/haptics";
 import { Stack, useRouter } from "expo-router";
 import { Button } from "heroui-native";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import {
+  FlatList,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUniwind } from "uniwind";
 
@@ -37,19 +46,35 @@ const ONBOARDING_STEPS = [
   },
 ] as const;
 
+const ONBOARDING_PAGE_GAP = 12;
+const ONBOARDING_HORIZONTAL_PADDING = 24;
+const ONBOARDING_TOP_ACTION_WIDTH = 88;
+const ONBOARDING_TOP_ACTION_HEIGHT = 24;
+const ONBOARDING_SECONDARY_CTA_SLOT_HEIGHT = 36;
+const ONBOARDING_SCREEN_TOP_PADDING = 12;
+const ONBOARDING_CONTENT_TOP_PADDING = 16;
+
 export default function OnboardingRoute() {
   const router = useRouter();
   const { setHasCompletedOnboarding } = useAppSettings();
   const { theme } = useUniwind();
-  const [currentStep, setCurrentStep] = useState(0);
-  const scrollViewRef = useRef<ScrollView | null>(null);
-  const isLastStep = currentStep === ONBOARDING_STEPS.length - 1;
-  const step = ONBOARDING_STEPS[currentStep];
+  const [settledStep, setSettledStep] = useState(0);
+  const [visibleStep, setVisibleStep] = useState(0);
+  const [pagerWidth, setPagerWidth] = useState(0);
+  const pagerRef = useRef<FlatList<(typeof ONBOARDING_STEPS)[number]> | null>(
+    null,
+  );
+  const scrollViewRefs = useRef<Array<ScrollView | null>>([]);
+  const isLastVisibleStep = visibleStep === ONBOARDING_STEPS.length - 1;
   const backgroundColor = theme === "dark" ? "#000000" : "#F5F5F5";
+  const pageWidth = pagerWidth;
+  const pageStride = pageWidth + ONBOARDING_PAGE_GAP;
 
   useEffect(() => {
-    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-  }, [currentStep]);
+    requestAnimationFrame(() => {
+      scrollViewRefs.current[settledStep]?.scrollTo({ y: 0, animated: false });
+    });
+  }, [settledStep]);
 
   useEffect(() => {
     track("onboarding_started");
@@ -57,39 +82,118 @@ export default function OnboardingRoute() {
 
   useEffect(() => {
     track("onboarding_step_viewed", {
-      step: currentStep + 1,
+      step: settledStep + 1,
     });
-  }, [currentStep]);
+  }, [settledStep]);
 
   const handleComplete = () => {
     setHasCompletedOnboarding(true);
   };
 
-  const handleSkip = () => {
-    track("onboarding_skipped", {
-      step: currentStep + 1,
-    });
+  const finishOnboarding = (options?: { openNewSubscription?: boolean }) => {
     handleComplete();
-    router.replace("/");
+    router.dismissTo("/");
+
+    if (!options?.openNewSubscription) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      router.push("/subscriptions/new");
+    });
   };
 
-  const handlePrimaryPress = () => {
+  const handleSkip = (stepIndex = visibleStep) => {
+    track("onboarding_skipped", {
+      step: stepIndex + 1,
+    });
+    finishOnboarding();
+  };
+
+  const updateVisibleStep = (offsetX: number) => {
+    if (pageStride <= 0) {
+      return;
+    }
+
+    const nextStep = Math.round(offsetX / pageStride);
+    const clampedStep = Math.min(
+      ONBOARDING_STEPS.length - 1,
+      Math.max(0, nextStep),
+    );
+
+    setVisibleStep((previousStep) =>
+      previousStep === clampedStep ? previousStep : clampedStep,
+    );
+  };
+
+  const scrollToStep = (stepIndex: number, animated: boolean) => {
+    if (pageStride <= 0) {
+      return;
+    }
+
+    pagerRef.current?.scrollToOffset({
+      offset: pageStride * stepIndex,
+      animated,
+    });
+  };
+
+  const handlePrimaryPress = (stepIndex: number) => {
     track("onboarding_primary_cta_tapped", {
-      step: currentStep + 1,
+      step: stepIndex + 1,
     });
 
-    if (!isLastStep) {
-      setCurrentStep((current) => current + 1);
+    if (stepIndex < ONBOARDING_STEPS.length - 1) {
+      const nextStep = stepIndex + 1;
+      setVisibleStep(nextStep);
+      setSettledStep(nextStep);
+      scrollToStep(nextStep, true);
       return;
     }
 
     track("onboarding_completed");
-    handleComplete();
-    router.replace("/");
+    finishOnboarding({ openNewSubscription: true });
+  };
 
-    setTimeout(() => {
-      router.push("/subscriptions/new");
-    }, 0);
+  const handlePagerLayout = (event: LayoutChangeEvent) => {
+    const nextWidth = Math.round(event.nativeEvent.layout.width);
+    if (nextWidth <= 0 || nextWidth === pagerWidth) {
+      return;
+    }
+
+    setPagerWidth(nextWidth);
+    requestAnimationFrame(() => {
+      pagerRef.current?.scrollToOffset({
+        offset: (nextWidth + ONBOARDING_PAGE_GAP) * settledStep,
+        animated: false,
+      });
+    });
+  };
+
+  const handlePagerScroll = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    updateVisibleStep(event.nativeEvent.contentOffset.x);
+  };
+
+  const handlePagerMomentumEnd = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    if (pageStride <= 0) {
+      return;
+    }
+
+    const nextStep = Math.round(event.nativeEvent.contentOffset.x / pageStride);
+    const clampedStep = Math.min(
+      ONBOARDING_STEPS.length - 1,
+      Math.max(0, nextStep),
+    );
+
+    setVisibleStep((previousStep) =>
+      previousStep === clampedStep ? previousStep : clampedStep,
+    );
+    setSettledStep((previousStep) =>
+      previousStep === clampedStep ? previousStep : clampedStep,
+    );
   };
 
   return (
@@ -100,88 +204,146 @@ export default function OnboardingRoute() {
         style={{
           flex: 1,
           backgroundColor,
-          paddingHorizontal: 24,
-          paddingTop: 16,
-          paddingBottom: 32,
+          paddingTop: ONBOARDING_SCREEN_TOP_PADDING,
         }}
       >
         <View style={{ flex: 1 }}>
-          <View className="flex-row items-center justify-between">
+          <View
+            className="flex-row items-center justify-between"
+            style={{ paddingHorizontal: ONBOARDING_HORIZONTAL_PADDING }}
+          >
             <View className="flex-row gap-2">
               {ONBOARDING_STEPS.map((item, index) => (
                 <View
                   key={item.eyebrow}
                   className={`h-1.5 rounded-full ${
-                    index === currentStep ? "w-8 bg-success" : "w-3 bg-border"
+                    index === visibleStep ? "w-8 bg-success" : "w-3 bg-border"
                   }`}
                 />
               ))}
             </View>
 
-            {!isLastStep ? (
-              <Pressable
-                onPressIn={hapticSelection}
-                onPress={handleSkip}
-                hitSlop={10}
-              >
-                <Text className="text-sm font-medium text-foreground/50">
-                  건너뛰기
-                </Text>
-              </Pressable>
-            ) : (
-              <View />
-            )}
+            <View
+              style={{
+                width: ONBOARDING_TOP_ACTION_WIDTH,
+                minHeight: ONBOARDING_TOP_ACTION_HEIGHT,
+                justifyContent: "center",
+                alignItems: "flex-end",
+              }}
+            >
+              {!isLastVisibleStep ? (
+                <Pressable
+                  onPressIn={hapticSelection}
+                  onPress={() => {
+                    handleSkip();
+                  }}
+                  hitSlop={10}
+                >
+                  <Text className="text-sm font-medium text-foreground/50">
+                    건너뛰기
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
-          <ScrollView
-            ref={scrollViewRef}
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              flexGrow: 1,
-              paddingTop: 40,
-              paddingBottom: 24,
-            }}
-            showsVerticalScrollIndicator={false}
-          >
-            <View className="gap-7">
-              <View className="gap-3">
-                <Text className="text-sm font-medium text-success">
-                  {step.eyebrow}
-                </Text>
-                <Text className="text-[34px] font-bold leading-tight text-black dark:text-white">
-                  {step.title}
-                </Text>
-                <Text className="text-base leading-6 text-foreground/60">
-                  {step.description}
-                </Text>
-              </View>
+          <View style={{ flex: 1 }} onLayout={handlePagerLayout}>
+            {pagerWidth > 0 ? (
+              <FlatList
+                ref={pagerRef}
+                data={ONBOARDING_STEPS}
+                style={{ flex: 1 }}
+                horizontal
+                directionalLockEnabled
+                bounces={false}
+                decelerationRate="fast"
+                disableIntervalMomentum
+                snapToAlignment="start"
+                snapToInterval={pageStride}
+                scrollEventThrottle={16}
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.eyebrow}
+                onScroll={handlePagerScroll}
+                onMomentumScrollEnd={handlePagerMomentumEnd}
+                ItemSeparatorComponent={() => (
+                  <View style={{ width: ONBOARDING_PAGE_GAP }} />
+                )}
+                renderItem={({ item, index }) => (
+                  <View style={{ width: pageWidth, flex: 1 }}>
+                    <ScrollView
+                      ref={(node) => {
+                        scrollViewRefs.current[index] = node;
+                      }}
+                      style={{ flex: 1 }}
+                      contentContainerStyle={{
+                        flexGrow: 1,
+                        paddingTop: ONBOARDING_CONTENT_TOP_PADDING,
+                        paddingBottom: 24,
+                        paddingHorizontal: ONBOARDING_HORIZONTAL_PADDING,
+                      }}
+                      directionalLockEnabled
+                      showsVerticalScrollIndicator={false}
+                    >
+                      <View className="gap-7">
+                        <View className="gap-3">
+                          <Text className="text-sm font-medium text-success">
+                            {item.eyebrow}
+                          </Text>
+                          <Text className="text-[34px] font-bold leading-tight text-black dark:text-white">
+                            {item.title}
+                          </Text>
+                          <Text className="text-base leading-6 text-foreground/60">
+                            {item.description}
+                          </Text>
+                        </View>
 
-              <View>{step.preview}</View>
-            </View>
-          </ScrollView>
+                        <View>{item.preview}</View>
+                      </View>
+                    </ScrollView>
 
-          <View className="gap-3 pt-4">
-            <Button
-              size="lg"
-              className="rounded-3xl"
-              onPressIn={hapticSelection}
-              onPress={handlePrimaryPress}
-            >
-              <Button.Label className="text-white">
-                {isLastStep ? "첫 구독 추가하기" : "다음"}
-              </Button.Label>
-            </Button>
+                    <View
+                      className="gap-3 pt-4"
+                      style={{ paddingHorizontal: ONBOARDING_HORIZONTAL_PADDING }}
+                    >
+                      <Button
+                        size="lg"
+                        className="rounded-3xl"
+                        onPressIn={hapticSelection}
+                        onPress={() => {
+                          handlePrimaryPress(index);
+                        }}
+                      >
+                        <Button.Label className="text-white">
+                          {index === ONBOARDING_STEPS.length - 1
+                            ? "첫 구독 추가하기"
+                            : "다음"}
+                        </Button.Label>
+                      </Button>
 
-            {isLastStep ? (
-              <Pressable
-                onPressIn={hapticSelection}
-                onPress={handleSkip}
-                className="items-center py-2"
-              >
-                <Text className="text-sm font-medium text-foreground/50">
-                  나중에 둘러볼게요
-                </Text>
-              </Pressable>
+                      <View
+                        style={{
+                          minHeight: ONBOARDING_SECONDARY_CTA_SLOT_HEIGHT,
+                          justifyContent: "center",
+                        }}
+                      >
+                        {index === ONBOARDING_STEPS.length - 1 ? (
+                          <Pressable
+                            onPressIn={hapticSelection}
+                            onPress={() => {
+                              handleSkip(index);
+                            }}
+                            className="items-center py-2"
+                          >
+                            <Text className="text-sm font-medium text-foreground/50">
+                              나중에 둘러볼게요
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    </View>
+                  </View>
+                )}
+              />
             ) : null}
           </View>
         </View>

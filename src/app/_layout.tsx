@@ -95,11 +95,6 @@ function AppStack({ backgroundColor }: { backgroundColor: string }) {
   useEffect(() => {
     if (!hasCompletedOnboarding && pathname !== "/onboarding") {
       router.replace("/onboarding");
-      return;
-    }
-
-    if (hasCompletedOnboarding && pathname === "/onboarding") {
-      router.replace("/");
     }
   }, [hasCompletedOnboarding, pathname, router]);
 
