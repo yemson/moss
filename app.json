@@ -2,7 +2,7 @@
   "expo": {
     "name": "Moss",
     "slug": "moss",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/moss-logo.png",
     "scheme": "moss",
