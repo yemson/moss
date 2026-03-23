@@ -219,7 +219,7 @@ export default function TabLayout() {
   }, []);
 
   useEffect(() => {
-    if (!isSettingsReady) {
+    if (!isSettingsReady || __DEV__) {
       return;
     }
 

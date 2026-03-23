@@ -9,15 +9,9 @@ import {
 } from "@/lib/subscription-notifications";
 import { seedScreenshotSubscriptions } from "@/lib/subscription-store";
 import { useFocusEffect } from "@react-navigation/native";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { Stack, useRouter } from "expo-router";
 import { Button, ListGroup, Separator, Switch } from "heroui-native";
-import {
-  BellIcon,
-  FlaskConicalIcon,
-  HandIcon,
-  SunIcon,
-} from "lucide-uniwind";
+import { BellIcon, FlaskConicalIcon, HandIcon, SunIcon } from "lucide-uniwind";
 import {
   useCallback,
   useMemo,
@@ -33,6 +27,7 @@ interface SettingItem {
   description?: string;
   icon?: ComponentType<{ size?: string | number; className?: string }>;
   suffix?: ReactNode;
+  onPress?: () => void;
 }
 
 interface SettingSection {
@@ -43,7 +38,6 @@ interface SettingSection {
 
 export default function SettingsRoute() {
   const router = useRouter();
-  const headerHeight = useHeaderHeight();
   const {
     notificationsEnabled,
     setNotificationsEnabled,
@@ -138,19 +132,14 @@ export default function SettingsRoute() {
                 ? "시스템 설정에서 알림을 허용해주세요."
                 : "",
             icon: BellIcon,
-            suffix:
-              isNotificationPermissionGranted === false ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onPressIn={hapticSelection}
-                  onPress={() => {
+            onPress:
+              isNotificationPermissionGranted === false
+                ? () => {
                     void openSystemNotificationSettings();
-                  }}
-                >
-                  <Button.Label>설정 열기</Button.Label>
-                </Button>
-              ) : (
+                  }
+                : undefined,
+            suffix:
+              isNotificationPermissionGranted === false ? undefined : (
                 <Switch
                   isSelected={notificationsEnabled}
                   isDisabled={isNotificationPermissionGranted == null}
@@ -184,6 +173,20 @@ export default function SettingsRoute() {
         ],
       },
       {
+        id: "subscriptions",
+        title: "구독",
+        items: [
+          {
+            id: "category-management",
+            title: "카테고리 관리",
+            description: "직접 만든 카테고리를 추가하고 정리합니다.",
+            onPress: () => {
+              router.push("/settings/categories");
+            },
+          },
+        ],
+      },
+      {
         id: "about",
         title: "앱 안내",
         items: [
@@ -191,20 +194,11 @@ export default function SettingsRoute() {
             id: "onboarding",
             title: "온보딩 다시 보기",
             description: "앱 소개 화면을 처음부터 다시 확인합니다.",
-            suffix: (
-              <Button
-                variant="secondary"
-                size="sm"
-                onPressIn={hapticSelection}
-                onPress={() => {
-                  track("onboarding_reopened");
-                  setHasCompletedOnboarding(false);
-                  router.replace("/onboarding");
-                }}
-              >
-                <Button.Label>다시 보기</Button.Label>
-              </Button>
-            ),
+            onPress: () => {
+              track("onboarding_reopened");
+              setHasCompletedOnboarding(false);
+              router.replace("/onboarding");
+            },
           },
         ],
       },
@@ -219,42 +213,23 @@ export default function SettingsRoute() {
                   title: "햅틱 테스트",
                   description: "햅틱 종류별 동작을 빠르게 확인합니다.",
                   icon: HandIcon,
-                  suffix: (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onPressIn={hapticSelection}
-                      onPress={() => {
-                        router.push("/dev/haptics");
-                      }}
-                    >
-                      <Button.Label>열기</Button.Label>
-                    </Button>
-                  ),
+                  onPress: () => {
+                    router.push("/dev/haptics");
+                  },
                 },
                 {
                   id: "notification-test",
                   title: "알림 테스트",
                   description: "단건/묶음 알림과 실제 예약 상태를 확인합니다.",
                   icon: FlaskConicalIcon,
-                  suffix: (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onPressIn={hapticSelection}
-                      onPress={() => {
-                        router.push("/dev/notifications");
-                      }}
-                    >
-                      <Button.Label>열기</Button.Label>
-                    </Button>
-                  ),
+                  onPress: () => {
+                    router.push("/dev/notifications");
+                  },
                 },
                 {
                   id: "screenshot-seed",
                   title: "스크린샷 데이터",
-                  description:
-                    "현재 구독을 지우고 샘플 데이터를 채웁니다.",
+                  description: "현재 구독을 지우고 샘플 데이터를 채웁니다.",
                   icon: FlaskConicalIcon,
                   suffix: (
                     <Button
@@ -296,7 +271,7 @@ export default function SettingsRoute() {
       />
 
       <ScrollView
-        style={{ paddingTop: headerHeight + 15 }}
+        contentInsetAdjustmentBehavior="automatic"
         className="flex-1 px-4"
         contentContainerStyle={{ paddingBottom: 96 }}
       >
@@ -308,9 +283,17 @@ export default function SettingsRoute() {
             <ListGroup className="shadow-lg shadow-neutral-300/10 dark:shadow-none px-1.5">
               {section.items.map((item, index) => {
                 const Icon = item.icon;
+                const isRowPressable = item.onPress != null;
+                const shouldRenderSuffix =
+                  isRowPressable || item.suffix != null;
+
                 return (
                   <View key={item.id}>
-                    <ListGroup.Item>
+                    <ListGroup.Item
+                      disabled={!isRowPressable}
+                      onPress={item.onPress}
+                      onPressIn={isRowPressable ? hapticSelection : undefined}
+                    >
                       {Icon && (
                         <ListGroup.ItemPrefix>
                           <Icon
@@ -329,9 +312,11 @@ export default function SettingsRoute() {
                         )}
                       </ListGroup.ItemContent>
 
-                      <ListGroup.ItemSuffix>
-                        {item.suffix ?? null}
-                      </ListGroup.ItemSuffix>
+                      {shouldRenderSuffix ? (
+                        <ListGroup.ItemSuffix>
+                          {item.suffix}
+                        </ListGroup.ItemSuffix>
+                      ) : null}
                     </ListGroup.Item>
 
                     {index < section.items.length - 1 && (

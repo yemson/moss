@@ -3,6 +3,7 @@ import { Mixpanel } from "mixpanel-react-native";
 import { Platform } from "react-native";
 
 const MIXPANEL_TOKEN = "bb40fab0141cf7293fecbecbede1ea95";
+const ANALYTICS_ENABLED = !__DEV__ && Boolean(MIXPANEL_TOKEN);
 
 type AnalyticsPrimitive = string | number | boolean | null;
 type AnalyticsProperties = Record<string, AnalyticsPrimitive | undefined>;
@@ -72,7 +73,7 @@ function flushQueuedEvents() {
 }
 
 export async function initAnalytics() {
-  if (!MIXPANEL_TOKEN) {
+  if (!ANALYTICS_ENABLED) {
     return;
   }
 
@@ -102,6 +103,10 @@ export async function initAnalytics() {
 }
 
 export function track(eventName: string, properties?: AnalyticsProperties) {
+  if (!ANALYTICS_ENABLED) {
+    return;
+  }
+
   if (!analyticsReady || !analyticsClient) {
     enqueueEvent({ type: "track", eventName, properties });
     return;
@@ -114,6 +119,10 @@ export function trackScreen(
   screenName: string,
   properties?: AnalyticsProperties,
 ) {
+  if (!ANALYTICS_ENABLED) {
+    return;
+  }
+
   if (!analyticsReady || !analyticsClient) {
     enqueueEvent({ type: "screen", screenName, properties });
     return;
@@ -129,5 +138,9 @@ export function trackScreen(
 }
 
 export function flushAnalytics() {
+  if (!ANALYTICS_ENABLED) {
+    return;
+  }
+
   analyticsClient?.flush();
 }

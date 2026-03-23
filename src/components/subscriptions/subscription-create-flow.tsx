@@ -163,13 +163,14 @@ export function SubscriptionCreateFlow({
   onMemoChange,
   onSubmit,
 }: SubscriptionCreateFlowProps) {
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const headerHeight = useHeaderHeight();
   const translateX = useRef(new Animated.Value(0)).current;
   const billingDatePickerWidth = Math.min(
     screenWidth - 60,
     SPINNER_PICKER_WIDTH,
   );
+  const categorySelectMaxHeight = Math.min(screenHeight * 0.55, 420);
   const selectedCategory = categoryOptions.find(
     (option) => option.value === values.categoryId,
   );
@@ -378,14 +379,19 @@ export function SubscriptionCreateFlow({
               align="end"
             >
               <Select.ListLabel className="mb-1">카테고리</Select.ListLabel>
-              {categoryOptions.map((option, index) => (
-                <Fragment key={option.value}>
-                  <Select.Item value={option.value} label={option.label} />
-                  {index < categoryOptions.length - 1 && (
-                    <Separator className="opacity-40" />
-                  )}
-                </Fragment>
-              ))}
+              <ScrollView
+                style={{ maxHeight: categorySelectMaxHeight }}
+                showsVerticalScrollIndicator
+              >
+                {categoryOptions.map((option, index) => (
+                  <Fragment key={option.value}>
+                    <Select.Item value={option.value} label={option.label} />
+                    {index < categoryOptions.length - 1 && (
+                      <Separator className="opacity-40" />
+                    )}
+                  </Fragment>
+                ))}
+              </ScrollView>
             </Select.Content>
           </Select.Portal>
         </Select>

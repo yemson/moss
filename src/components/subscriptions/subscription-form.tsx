@@ -89,6 +89,7 @@ export function SubscriptionForm({
     SPINNER_PICKER_WIDTH,
   );
   const templateSelectMaxHeight = Math.min(screenHeight * 0.55, 420);
+  const categorySelectMaxHeight = Math.min(screenHeight * 0.55, 420);
   const selectedBillingCycle = BILLING_CYCLE_OPTIONS.find(
     (option) => option.value === values.billingCycle,
   );
@@ -317,14 +318,19 @@ export function SubscriptionForm({
                   align="end"
                 >
                   <Select.ListLabel className="mb-1">카테고리</Select.ListLabel>
-                  {categoryOptions.map((option, index) => (
-                    <Fragment key={option.value}>
-                      <Select.Item value={option.value} label={option.label} />
-                      {index < categoryOptions.length - 1 && (
-                        <Separator className="opacity-40" />
-                      )}
-                    </Fragment>
-                  ))}
+                  <ScrollView
+                    style={{ maxHeight: categorySelectMaxHeight }}
+                    showsVerticalScrollIndicator
+                  >
+                    {categoryOptions.map((option, index) => (
+                      <Fragment key={option.value}>
+                        <Select.Item value={option.value} label={option.label} />
+                        {index < categoryOptions.length - 1 && (
+                          <Separator className="opacity-40" />
+                        )}
+                      </Fragment>
+                    ))}
+                  </ScrollView>
                 </Select.Content>
               </Select.Portal>
             </Select>
