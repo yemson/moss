@@ -159,7 +159,7 @@ export function OnboardingBillingPreview() {
           <PreviewInfoRow label="결제일" value="매월 17일" />
           <PreviewInfoRow label="결제 주기" value="월간 결제" />
           <View className="flex-row items-center justify-between gap-3 py-0.5">
-            <Text className="text-sm text-foreground/55">하루 전 알림</Text>
+            <Text className="text-sm text-foreground/55">알림 받기</Text>
             <StaticSwitch />
           </View>
         </View>

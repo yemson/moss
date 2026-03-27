@@ -155,7 +155,7 @@ export default function DevNotificationsRoute() {
             활성 구독: {snapshot?.activeSubscriptions.length ?? 0}개
           </Text>
           <Text className="text-sm dark:text-white">
-            개별 알림 ON 구독: {snapshot?.eligibleSubscriptions.length ?? 0}개
+            알림 설정 구독: {snapshot?.eligibleSubscriptions.length ?? 0}개
           </Text>
           <Text className="text-sm dark:text-white">
             예약 가능 상태: {snapshot?.canSchedule ? "가능" : "불가"}

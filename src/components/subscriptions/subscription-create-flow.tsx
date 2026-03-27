@@ -1,3 +1,4 @@
+import { SubscriptionNotificationLeadDaySelector } from "@/components/subscriptions/subscription-notification-lead-day-selector";
 import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { hapticSelection } from "@/lib/haptics";
 import {
@@ -6,10 +7,10 @@ import {
   parseAmountInput,
   type SelectOption,
 } from "@/lib/subscription-editor";
-import { SUBSCRIPTION_TEMPLATES } from "@/lib/subscription-templates";
 import type { BillingCycle } from "@/lib/subscription-store";
-import { useHeaderHeight } from "@react-navigation/elements";
+import { SUBSCRIPTION_TEMPLATES } from "@/lib/subscription-templates";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   BottomSheet,
@@ -61,7 +62,7 @@ const STEP_CONTENT = [
   {
     eyebrow: "4 / 5",
     title: "알림",
-    description: "결제 하루 전 알림을 받을지 선택하세요.",
+    description: "결제 전 알림을 받을지 선택하세요.",
   },
   {
     eyebrow: "5 / 5",
@@ -76,7 +77,8 @@ export interface SubscriptionCreateFlowValues {
   serviceName: string;
   amount: string;
   billingDate: string;
-  notifyDayBefore: boolean;
+  isReminderEnabled: boolean;
+  notificationLeadDays: number[];
   notificationsEnabled: boolean;
   billingCycle: BillingCycle;
   memo: string;
@@ -95,7 +97,8 @@ interface SubscriptionCreateFlowProps {
   onServiceNameChange: (value: string) => void;
   onAmountChange: (value: string) => void;
   onBillingCycleChange: (value: BillingCycle) => void;
-  onNotifyDayBeforeChange: (nextEnabled: boolean) => void;
+  onReminderEnabledChange: (nextEnabled: boolean) => void;
+  onNotificationLeadDaysChange: (nextLeadDays: number[]) => void;
   onBillingDateSheetOpenChange: (nextOpen: boolean) => void;
   onBillingDateDraftChange: (date: Date) => void;
   onBillingDateApply: () => void;
@@ -142,6 +145,13 @@ function getStepState(step: number, values: SubscriptionCreateFlowValues) {
     return { canProceed: true };
   }
 
+  if (step === 3) {
+    return {
+      canProceed:
+        !values.isReminderEnabled || values.notificationLeadDays.length > 0,
+    };
+  }
+
   return { canProceed: true };
 }
 
@@ -155,7 +165,8 @@ export function SubscriptionCreateFlow({
   onServiceNameChange,
   onAmountChange,
   onBillingCycleChange,
-  onNotifyDayBeforeChange,
+  onReminderEnabledChange,
+  onNotificationLeadDaysChange,
   onBillingDateSheetOpenChange,
   onBillingDateDraftChange,
   onBillingDateApply,
@@ -577,22 +588,22 @@ export function SubscriptionCreateFlow({
     >
       {renderStepHeader(3)}
 
-      <View className="gap-2 rounded-3xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
+      <View className="gap-2 rounded-2xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
         <View className="flex-row items-center justify-between gap-4">
           <View className="flex-1 gap-1">
             <Text className="font-semibold text-black dark:text-white">
-              하루 전 알림
+              알림 받기
             </Text>
             <Text className="text-sm text-foreground/50">
               {values.notificationsEnabled
-                ? "오전 10시에 내일 결제 예정인 구독을 알려드려요."
+                ? "결제 전에 받을 날짜를 여러 개 고를 수 있어요."
                 : "앱 전체 알림이 꺼져 있어 현재는 발송되지 않습니다."}
             </Text>
           </View>
           <Switch
-            isSelected={values.notifyDayBefore}
+            isSelected={values.isReminderEnabled}
             onPressIn={hapticSelection}
-            onSelectedChange={onNotifyDayBeforeChange}
+            onSelectedChange={onReminderEnabledChange}
           >
             <Switch.Thumb
               animation={{
@@ -604,6 +615,15 @@ export function SubscriptionCreateFlow({
           </Switch>
         </View>
       </View>
+
+      {values.isReminderEnabled && (
+        <>
+          <SubscriptionNotificationLeadDaySelector
+            selectedLeadDays={values.notificationLeadDays}
+            onSelectionChange={onNotificationLeadDaysChange}
+          />
+        </>
+      )}
     </ScrollView>
   );
 

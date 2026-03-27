@@ -1,5 +1,9 @@
 import { openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
 import { getSubscriptionTemplate } from "@/lib/subscription-templates";
+import {
+  normalizeNotificationLeadDays,
+  parseNotificationLeadDays,
+} from "@/lib/subscription-reminders";
 
 export type Currency = "KRW";
 export type BillingCycle = "monthly" | "yearly";
@@ -20,7 +24,7 @@ export interface Subscription {
   currency: Currency;
   billingCycle: BillingCycle;
   billingDate: string;
-  notifyDayBefore: boolean;
+  notificationLeadDays: number[];
   categoryId: string;
   isActive: boolean;
   memo: string | null;
@@ -49,7 +53,7 @@ export interface CreateSubscriptionInput {
   currency?: Currency;
   billingCycle: BillingCycle;
   billingDate: string;
-  notifyDayBefore?: boolean;
+  notificationLeadDays?: number[];
   categoryId: string;
   isActive?: boolean;
   memo?: string | null;
@@ -62,7 +66,7 @@ export interface UpdateSubscriptionInput {
   currency?: Currency;
   billingCycle?: BillingCycle;
   billingDate?: string;
-  notifyDayBefore?: boolean;
+  notificationLeadDays?: number[];
   categoryId?: string;
   isActive?: boolean;
   memo?: string | null;
@@ -119,7 +123,7 @@ interface ScreenshotSeedDefinition {
   billingCycle: BillingCycle;
   monthsAgo: number;
   dayOffset: number;
-  notifyDayBefore: boolean;
+  notificationLeadDays: number[];
   memo?: string | null;
 }
 
@@ -212,6 +216,7 @@ function mapSubscriptionRow(row: {
   billingCycle: string;
   billingDate: string;
   notifyDayBefore: number;
+  notificationLeadDays: string | null;
   categoryId: string;
   isActive: number;
   memo: string | null;
@@ -236,7 +241,7 @@ function mapSubscriptionRow(row: {
     currency: row.currency,
     billingCycle: row.billingCycle,
     billingDate: row.billingDate,
-    notifyDayBefore: row.notifyDayBefore === 1,
+    notificationLeadDays: parseNotificationLeadDays(row.notificationLeadDays),
     categoryId: row.categoryId,
     isActive: row.isActive === 1,
     memo: row.memo,
@@ -318,6 +323,7 @@ async function createSchema(database: SQLiteDatabase): Promise<void> {
       billingDate TEXT NOT NULL,
       trialEndDate TEXT,
       notifyDayBefore INTEGER NOT NULL DEFAULT 0,
+      notificationLeadDays TEXT NOT NULL DEFAULT '[]',
       categoryId TEXT NOT NULL,
       isActive INTEGER NOT NULL DEFAULT 1,
       memo TEXT,
@@ -406,6 +412,31 @@ async function migrateNotifyDayBeforeColumn(database: SQLiteDatabase): Promise<v
   }
 }
 
+async function migrateNotificationLeadDaysColumn(
+  database: SQLiteDatabase,
+): Promise<void> {
+  try {
+    await database.execAsync(`
+      ALTER TABLE subscriptions
+      ADD COLUMN notificationLeadDays TEXT NOT NULL DEFAULT '[]'
+    `);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+
+    if (!message.includes("duplicate column name")) {
+      throw error;
+    }
+  }
+
+  await database.execAsync(`
+    UPDATE subscriptions
+    SET
+      notificationLeadDays = '[1]',
+      notifyDayBefore = 0
+    WHERE notificationLeadDays = '[]' AND notifyDayBefore = 1
+  `);
+}
+
 async function seedPresetCategories(database: SQLiteDatabase): Promise<void> {
   const now = nowIsoString();
 
@@ -444,6 +475,7 @@ async function ensureInitialized(): Promise<void> {
       await migrateTemplateKeyColumn(database);
       await migrateTrialEndDateColumn(database);
       await migrateNotifyDayBeforeColumn(database);
+      await migrateNotificationLeadDaysColumn(database);
       await removeUsdData(database);
       await removeTrialSubscriptions(database);
       await seedPresetCategories(database);
@@ -551,7 +583,7 @@ function getScreenshotSeedDefinitions(
       billingCycle: "monthly",
       monthsAgo: 14,
       dayOffset: futureOffsets[0],
-      notifyDayBefore: true,
+      notificationLeadDays: [1],
       memo: "가족과 함께 보고 있어요.",
     },
     {
@@ -560,7 +592,7 @@ function getScreenshotSeedDefinitions(
       billingCycle: "monthly",
       monthsAgo: 12,
       dayOffset: pastOffsets[0],
-      notifyDayBefore: true,
+      notificationLeadDays: [1],
     },
     {
       templateKey: "icloud-plus",
@@ -568,7 +600,7 @@ function getScreenshotSeedDefinitions(
       billingCycle: "monthly",
       monthsAgo: 10,
       dayOffset: futureOffsets[1],
-      notifyDayBefore: false,
+      notificationLeadDays: [],
     },
     {
       templateKey: "notion",
@@ -576,7 +608,7 @@ function getScreenshotSeedDefinitions(
       billingCycle: "monthly",
       monthsAgo: 9,
       dayOffset: futureOffsets[2],
-      notifyDayBefore: true,
+      notificationLeadDays: [1],
     },
     {
       templateKey: "melon",
@@ -584,7 +616,7 @@ function getScreenshotSeedDefinitions(
       billingCycle: "monthly",
       monthsAgo: 11,
       dayOffset: pastOffsets[1],
-      notifyDayBefore: false,
+      notificationLeadDays: [],
     },
     {
       templateKey: "chatgpt-plus",
@@ -592,7 +624,7 @@ function getScreenshotSeedDefinitions(
       billingCycle: "monthly",
       monthsAgo: 6,
       dayOffset: futureOffsets[3],
-      notifyDayBefore: true,
+      notificationLeadDays: [1],
     },
     {
       templateKey: "naver-plus",
@@ -600,7 +632,7 @@ function getScreenshotSeedDefinitions(
       billingCycle: "monthly",
       monthsAgo: 8,
       dayOffset: pastOffsets[2],
-      notifyDayBefore: false,
+      notificationLeadDays: [],
     },
   ];
 }
@@ -628,12 +660,13 @@ async function insertScreenshotSeedSubscription(
         billingCycle,
         billingDate,
         notifyDayBefore,
+        notificationLeadDays,
         categoryId,
         isActive,
         memo,
         createdAt,
         updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       generateId("sub"),
@@ -647,7 +680,8 @@ async function insertScreenshotSeedSubscription(
         definition.monthsAgo,
         definition.dayOffset,
       ),
-      definition.notifyDayBefore ? 1 : 0,
+      0,
+      JSON.stringify(normalizeNotificationLeadDays(definition.notificationLeadDays)),
       template.categoryId,
       1,
       normalizeMemo(definition.memo),
@@ -1197,6 +1231,9 @@ export async function createSubscription(
   }
 
   assertBillingDate(input.billingDate);
+  const normalizedNotificationLeadDays = normalizeNotificationLeadDays(
+    input.notificationLeadDays,
+  );
 
   await ensureInitialized();
   const database = await getDatabase();
@@ -1214,12 +1251,13 @@ export async function createSubscription(
         billingCycle,
         billingDate,
         notifyDayBefore,
+        notificationLeadDays,
         categoryId,
         isActive,
         memo,
         createdAt,
         updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
@@ -1228,7 +1266,8 @@ export async function createSubscription(
       input.amount,
       input.billingCycle,
       input.billingDate,
-      input.notifyDayBefore === true ? 1 : 0,
+      0,
+      JSON.stringify(normalizedNotificationLeadDays),
       input.categoryId,
       input.isActive === false ? 0 : 1,
       normalizeMemo(input.memo),
@@ -1277,6 +1316,7 @@ export async function listSubscriptions(
     billingCycle: string;
     billingDate: string;
     notifyDayBefore: number;
+    notificationLeadDays: string | null;
     categoryId: string;
     isActive: number;
     memo: string | null;
@@ -1295,6 +1335,7 @@ export async function listSubscriptions(
         s.billingCycle,
         s.billingDate,
         s.notifyDayBefore,
+        s.notificationLeadDays,
         s.categoryId,
         s.isActive,
         s.memo,
@@ -1328,6 +1369,7 @@ export async function getSubscriptionById(
     billingCycle: string;
     billingDate: string;
     notifyDayBefore: number;
+    notificationLeadDays: string | null;
     categoryId: string;
     isActive: number;
     memo: string | null;
@@ -1346,6 +1388,7 @@ export async function getSubscriptionById(
         s.billingCycle,
         s.billingDate,
         s.notifyDayBefore,
+        s.notificationLeadDays,
         s.categoryId,
         s.isActive,
         s.memo,
@@ -1415,9 +1458,9 @@ export async function updateSubscription(
     params.push(input.billingDate);
   }
 
-  if (input.notifyDayBefore !== undefined) {
-    sets.push("notifyDayBefore = ?");
-    params.push(input.notifyDayBefore ? 1 : 0);
+  if (input.notificationLeadDays !== undefined) {
+    sets.push("notificationLeadDays = ?");
+    params.push(JSON.stringify(normalizeNotificationLeadDays(input.notificationLeadDays)));
   }
 
   if (input.categoryId !== undefined) {

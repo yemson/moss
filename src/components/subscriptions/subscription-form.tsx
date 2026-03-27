@@ -1,15 +1,15 @@
-import { hapticSelection } from "@/lib/haptics";
-import {
-  SUBSCRIPTION_TEMPLATES,
-  getSubscriptionTemplate,
-} from "@/lib/subscription-templates";
 import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
+import { hapticSelection } from "@/lib/haptics";
 import {
   BILLING_CYCLE_OPTIONS,
   isBillingCycle,
   type SelectOption,
 } from "@/lib/subscription-editor";
 import type { BillingCycle } from "@/lib/subscription-store";
+import {
+  SUBSCRIPTION_TEMPLATES,
+  getSubscriptionTemplate,
+} from "@/lib/subscription-templates";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Image as ExpoImage } from "expo-image";
 import {
@@ -32,6 +32,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { SubscriptionNotificationLeadDaySelector } from "./subscription-notification-lead-day-selector";
 
 const SPINNER_PICKER_HEIGHT = 216;
 const SPINNER_PICKER_WIDTH = 320;
@@ -41,7 +42,8 @@ export interface SubscriptionFormValues {
   serviceName: string;
   amount: string;
   billingDate: string;
-  notifyDayBefore: boolean;
+  isReminderEnabled: boolean;
+  notificationLeadDays: number[];
   notificationsEnabled: boolean;
   billingCycle: BillingCycle;
   memo: string;
@@ -58,7 +60,8 @@ interface SubscriptionFormProps {
   onServiceNameChange: (value: string) => void;
   onAmountChange: (value: string) => void;
   onBillingCycleChange: (value: BillingCycle) => void;
-  onNotifyDayBeforeChange: (nextEnabled: boolean) => void;
+  onReminderEnabledChange: (nextEnabled: boolean) => void;
+  onNotificationLeadDaysChange: (nextLeadDays: number[]) => void;
   onBillingDateSheetOpenChange: (nextOpen: boolean) => void;
   onBillingDateDraftChange: (date: Date) => void;
   onBillingDateApply: () => void;
@@ -74,7 +77,8 @@ export function SubscriptionForm({
   onServiceNameChange,
   onAmountChange,
   onBillingCycleChange,
-  onNotifyDayBeforeChange,
+  onReminderEnabledChange,
+  onNotificationLeadDaysChange,
   onBillingDateSheetOpenChange,
   onBillingDateDraftChange,
   onBillingDateApply,
@@ -489,23 +493,23 @@ export function SubscriptionForm({
 
           <View className="flex-row items-end gap-3">
             <View className="flex-2">
-              <View className="gap-2 rounded-3xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
+              <View className="gap-2 rounded-2xl bg-surface px-4 py-4 ios:shadow-lg shadow-neutral-300/10 dark:shadow-none">
                 <View className="flex-row items-center justify-between gap-4">
                   <View className="flex-1 gap-1">
                     <Text className="font-semibold text-black dark:text-white">
-                      하루 전 알림
+                      알림 받기
                     </Text>
                     <Text className="text-sm text-foreground/50">
                       {values.notificationsEnabled
-                        ? "오전 10시에 내일 결제 예정인 구독을 알려드려요."
+                        ? "결제 전에 받을 날짜를 여러 개 고를 수 있어요."
                         : "앱 전체 알림이 꺼져 있어 현재는 발송되지 않습니다."}
                     </Text>
                   </View>
                   <Switch
-                    isSelected={values.notifyDayBefore}
+                    isSelected={values.isReminderEnabled}
                     onPressIn={dismissKeyboardAndHaptic}
                     onSelectedChange={(nextSelected) => {
-                      onNotifyDayBeforeChange(nextSelected);
+                      onReminderEnabledChange(nextSelected);
                     }}
                   >
                     <Switch.Thumb
@@ -520,6 +524,13 @@ export function SubscriptionForm({
               </View>
             </View>
           </View>
+
+          {values.isReminderEnabled && (
+            <SubscriptionNotificationLeadDaySelector
+              selectedLeadDays={values.notificationLeadDays}
+              onSelectionChange={onNotificationLeadDaysChange}
+            />
+          )}
 
           <Separator className="my-2 opacity-40 mx-1" />
 

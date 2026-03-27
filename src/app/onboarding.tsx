@@ -1,10 +1,10 @@
-import { useAppSettings } from "@/lib/app-settings";
 import {
   OnboardingBillingPreview,
   OnboardingHomePreview,
   OnboardingStatisticsPreview,
 } from "@/components/onboarding/onboarding-previews";
 import { track } from "@/lib/analytics";
+import { useAppSettings } from "@/lib/app-settings";
 import { hapticSelection } from "@/lib/haptics";
 import { Stack, useRouter } from "expo-router";
 import { Button } from "heroui-native";
@@ -34,7 +34,7 @@ const ONBOARDING_STEPS = [
     eyebrow: "2 / 3",
     title: "다음 결제를 놓치지 않게",
     description:
-      "구독마다 결제일과 주기를 기록하고, 하루 전 알림으로 다가오는 결제를 미리 확인할 수 있어요.",
+      "구독마다 결제일과 주기를 기록하고, 알림으로 다가오는 결제를 미리 확인할 수 있어요.",
     preview: <OnboardingBillingPreview />,
   },
   {

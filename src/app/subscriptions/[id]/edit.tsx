@@ -32,7 +32,10 @@ export default function EditSubscriptionRoute() {
   const [serviceName, setServiceName] = useState("");
   const [amount, setAmount] = useState("");
   const [billingDate, setBillingDate] = useState("");
-  const [notifyDayBefore, setNotifyDayBefore] = useState(false);
+  const [isReminderEnabled, setIsReminderEnabled] = useState(false);
+  const [notificationLeadDays, setNotificationLeadDays] = useState<number[]>(
+    [],
+  );
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [memo, setMemo] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -97,7 +100,8 @@ export default function EditSubscriptionRoute() {
     setServiceName(loadedSubscription.name);
     setAmount(String(loadedSubscription.amount));
     setBillingDate(loadedSubscription.billingDate);
-    setNotifyDayBefore(loadedSubscription.notifyDayBefore);
+    setIsReminderEnabled(loadedSubscription.notificationLeadDays.length > 0);
+    setNotificationLeadDays(loadedSubscription.notificationLeadDays);
     setBillingCycle(loadedSubscription.billingCycle);
     setMemo(loadedSubscription.memo ?? "");
     setBillingDateValue(billingDateAsDate);
@@ -164,6 +168,11 @@ export default function EditSubscriptionRoute() {
       return;
     }
 
+    if (isReminderEnabled && notificationLeadDays.length === 0) {
+      Alert.alert("안내", "알림 날짜를 하나 이상 선택해주세요.");
+      return;
+    }
+
     try {
       setIsSaving(true);
       Keyboard.dismiss();
@@ -173,7 +182,7 @@ export default function EditSubscriptionRoute() {
         amount: parsedAmount,
         billingCycle,
         billingDate,
-        notifyDayBefore,
+        notificationLeadDays,
         categoryId,
         memo: memo.trim() || null,
       });
@@ -202,6 +211,14 @@ export default function EditSubscriptionRoute() {
 
   const handleAmountChange = (nextAmount: string) => {
     setAmount(sanitizeAmountInput(nextAmount));
+  };
+
+  const handleReminderEnabledChange = (nextEnabled: boolean) => {
+    setIsReminderEnabled(nextEnabled);
+
+    if (!nextEnabled) {
+      setNotificationLeadDays([]);
+    }
   };
 
   return (
@@ -260,7 +277,8 @@ export default function EditSubscriptionRoute() {
             serviceName,
             amount,
             billingDate,
-            notifyDayBefore,
+            isReminderEnabled,
+            notificationLeadDays,
             notificationsEnabled,
             billingCycle,
             memo,
@@ -272,7 +290,8 @@ export default function EditSubscriptionRoute() {
           onServiceNameChange={setServiceName}
           onAmountChange={handleAmountChange}
           onBillingCycleChange={setBillingCycle}
-          onNotifyDayBeforeChange={setNotifyDayBefore}
+          onReminderEnabledChange={handleReminderEnabledChange}
+          onNotificationLeadDaysChange={setNotificationLeadDays}
           onBillingDateSheetOpenChange={handleBillingDateSheetOpenChange}
           onBillingDateDraftChange={setBillingDateDraft}
           onBillingDateApply={handleApplyBillingDate}

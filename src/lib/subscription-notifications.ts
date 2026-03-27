@@ -1,4 +1,5 @@
 import type { AppSettings } from "@/lib/app-settings";
+import { NOTIFICATION_LEAD_DAYS } from "@/lib/subscription-reminders";
 import {
   listSubscriptions,
   listUpcomingBillingDates,
@@ -19,7 +20,7 @@ const TEST_BILLING_REMINDER_NOTIFICATION_PREFIX =
   "moss.test.billing-reminder.";
 const BILLING_REMINDER_NOTIFICATION_TYPE = "billing-reminder";
 const BILLING_REMINDER_HOUR = 10;
-const BILLING_REMINDER_NOTIFICATION_TITLE = "내일 결제 예정";
+const BILLING_REMINDER_NOTIFICATION_TITLE = "결제 예정";
 const TEST_BILLING_REMINDER_NOTIFICATION_TITLE = "알림 테스트";
 
 type BillingReminderNotificationKind = "production" | "test";
@@ -27,6 +28,7 @@ type BillingReminderNotificationKind = "production" | "test";
 export interface BillingReminderGroupPreview {
   identifier: string;
   triggerDate: Date;
+  leadDay: number;
   subscriptions: SubscriptionWithCategory[];
   body: string;
 }
@@ -83,41 +85,48 @@ function parseYmdToLocalDate(value: string) {
   return new Date(year, month - 1, day);
 }
 
-function getReminderTriggerDate(billingDate: string) {
+function getReminderTriggerDate(billingDate: string, leadDay: number) {
   const triggerDate = parseYmdToLocalDate(billingDate);
-  triggerDate.setDate(triggerDate.getDate() - 1);
+  triggerDate.setDate(triggerDate.getDate() - leadDay);
   triggerDate.setHours(BILLING_REMINDER_HOUR, 0, 0, 0);
   return triggerDate;
 }
 
 function buildReminderIdentifier(
   triggerDate: Date,
+  leadDay: number,
   kind: BillingReminderNotificationKind,
 ) {
   const prefix = getNotificationPrefix(kind);
   const year = triggerDate.getFullYear();
   const month = String(triggerDate.getMonth() + 1).padStart(2, "0");
   const day = String(triggerDate.getDate()).padStart(2, "0");
-  return `${prefix}${year}-${month}-${day}`;
+  return `${prefix}${year}-${month}-${day}.${leadDay}d`;
 }
 
-export function buildBillingReminderBody(names: string[]) {
+export function buildBillingReminderBody(names: string[], leadDay: number) {
   const sortedNames = [...names].sort((a, b) => a.localeCompare(b, "ko"));
   const [firstName] = sortedNames;
 
   if (!firstName) {
-    return "내일 결제될 예정인 구독이 있습니다.";
+    return `${leadDay}일 뒤 결제 예정인 구독이 있습니다.`;
   }
 
   if (sortedNames.length === 1) {
-    return `${firstName}가 내일 결제될 예정입니다.`;
+    return `${firstName} 결제까지 ${leadDay}일 남았어요.`;
   }
 
-  return `${firstName} 외 ${sortedNames.length - 1}개의 구독이 내일 결제될 예정입니다.`;
+  return `${firstName} 외 ${sortedNames.length - 1}개의 구독 결제까지 ${leadDay}일 남았어요.`;
 }
 
-function buildReminderBody(subscriptions: SubscriptionWithCategory[]) {
-  return buildBillingReminderBody(subscriptions.map((subscription) => subscription.name));
+function buildReminderBody(
+  subscriptions: SubscriptionWithCategory[],
+  leadDay: number,
+) {
+  return buildBillingReminderBody(
+    subscriptions.map((subscription) => subscription.name),
+    leadDay,
+  );
 }
 
 function buildReminderGroups(
@@ -125,40 +134,59 @@ function buildReminderGroups(
   now: Date,
   kind: BillingReminderNotificationKind,
 ) {
-  const rangeEndDate = new Date(now);
-  rangeEndDate.setDate(rangeEndDate.getDate() + BILLING_REMINDER_WINDOW_DAYS);
+  const maxLeadDay = Math.max(...NOTIFICATION_LEAD_DAYS);
+  const triggerWindowEndDate = new Date(now);
+  triggerWindowEndDate.setDate(
+    triggerWindowEndDate.getDate() + BILLING_REMINDER_WINDOW_DAYS,
+  );
+  const billingRangeEndDate = new Date(now);
+  billingRangeEndDate.setDate(
+    billingRangeEndDate.getDate() +
+      BILLING_REMINDER_WINDOW_DAYS +
+      maxLeadDay,
+  );
 
   const groupedSubscriptions = new Map<
     string,
-    { triggerDate: Date; subscriptions: SubscriptionWithCategory[] }
+    {
+      triggerDate: Date;
+      leadDay: number;
+      subscriptions: SubscriptionWithCategory[];
+    }
   >();
 
   for (const subscription of subscriptions) {
     const upcomingBillingDates = listUpcomingBillingDates(
       subscription.billingDate,
       subscription.billingCycle,
-      rangeEndDate,
+      billingRangeEndDate,
       now,
     );
 
     for (const billingDate of upcomingBillingDates) {
-      const triggerDate = getReminderTriggerDate(billingDate);
-      if (triggerDate.getTime() <= now.getTime()) {
-        continue;
+      for (const leadDay of subscription.notificationLeadDays) {
+        const triggerDate = getReminderTriggerDate(billingDate, leadDay);
+        if (
+          triggerDate.getTime() <= now.getTime() ||
+          triggerDate.getTime() > triggerWindowEndDate.getTime()
+        ) {
+          continue;
+        }
+
+        const identifier = buildReminderIdentifier(triggerDate, leadDay, kind);
+        const existingGroup = groupedSubscriptions.get(identifier);
+
+        if (existingGroup) {
+          existingGroup.subscriptions.push(subscription);
+          continue;
+        }
+
+        groupedSubscriptions.set(identifier, {
+          triggerDate,
+          leadDay,
+          subscriptions: [subscription],
+        });
       }
-
-      const identifier = buildReminderIdentifier(triggerDate, kind);
-      const existingGroup = groupedSubscriptions.get(identifier);
-
-      if (existingGroup) {
-        existingGroup.subscriptions.push(subscription);
-        continue;
-      }
-
-      groupedSubscriptions.set(identifier, {
-        triggerDate,
-        subscriptions: [subscription],
-      });
     }
   }
 
@@ -167,8 +195,9 @@ function buildReminderGroups(
     .map(([identifier, group]) => ({
       identifier,
       triggerDate: group.triggerDate,
+      leadDay: group.leadDay,
       subscriptions: group.subscriptions,
-      body: buildReminderBody(group.subscriptions),
+      body: buildReminderBody(group.subscriptions, group.leadDay),
     }));
 }
 
@@ -219,6 +248,7 @@ async function scheduleReminderGroup(
       data: {
         type: BILLING_REMINDER_NOTIFICATION_TYPE,
         href: "/",
+        leadDay: group.leadDay,
       },
     },
     trigger: {
@@ -273,7 +303,7 @@ export async function getBillingReminderDebugSnapshot(
   const permissionGranted = await getNotificationPermissionGrantedAsync();
   const activeSubscriptions = await listSubscriptions({ isActive: true });
   const eligibleSubscriptions = activeSubscriptions.filter(
-    (subscription) => subscription.notifyDayBefore,
+    (subscription) => subscription.notificationLeadDays.length > 0,
   );
   const groups = buildReminderGroups(
     eligibleSubscriptions,
@@ -346,6 +376,7 @@ export async function cancelTestBillingReminderNotifications() {
 
 export async function scheduleTestBillingReminder(
   names: string[],
+  leadDay = 1,
   delaySeconds = 1,
 ) {
   const triggerDate = new Date(Date.now() + delaySeconds * 1000);
@@ -355,10 +386,11 @@ export async function scheduleTestBillingReminder(
     identifier,
     content: {
       title: TEST_BILLING_REMINDER_NOTIFICATION_TITLE,
-      body: buildBillingReminderBody(names),
+      body: buildBillingReminderBody(names, leadDay),
       data: {
         type: BILLING_REMINDER_NOTIFICATION_TYPE,
         href: "/",
+        leadDay,
       },
     },
     trigger: {
@@ -384,7 +416,7 @@ export async function syncSubscriptionNotifications(
 
   const subscriptions = await listSubscriptions({ isActive: true });
   const eligibleSubscriptions = subscriptions.filter(
-    (subscription) => subscription.notifyDayBefore,
+    (subscription) => subscription.notificationLeadDays.length > 0,
   );
   const groups = buildReminderGroups(
     eligibleSubscriptions,
