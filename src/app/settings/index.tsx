@@ -11,7 +11,17 @@ import { seedScreenshotSubscriptions } from "@/lib/subscription-store";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useRouter } from "expo-router";
 import { Button, ListGroup, Separator, Switch } from "heroui-native";
-import { BellIcon, BlocksIcon, FlagIcon, FlaskConicalIcon, HandIcon, PresentationIcon, StarIcon, SunIcon } from "lucide-uniwind";
+import {
+  BellIcon,
+  BlocksIcon,
+  FlagIcon,
+  FlaskConicalIcon,
+  HandIcon,
+  HistoryIcon,
+  PresentationIcon,
+  StarIcon,
+  SunIcon,
+} from "lucide-uniwind";
 import {
   useCallback,
   useMemo,
@@ -236,6 +246,15 @@ export default function SettingsRoute() {
               void handleOpenAppStore();
             },
           },
+          {
+            id: "updates",
+            title: "업데이트 내역",
+            description: "지금까지의 업데이트 내용을 확인합니다.",
+            icon: HistoryIcon,
+            onPress: () => {
+              router.push("/settings/updates");
+            },
+          },
         ],
       },
       ...(__DEV__
@@ -369,7 +388,7 @@ export default function SettingsRoute() {
 
         <View className="flex justify-center items-center mt-14">
           <Text className="opacity-50 text-black dark:text-white">
-            버전 1.0.1
+            버전 1.0.2
           </Text>
         </View>
       </ScrollView>
