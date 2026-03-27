@@ -31,7 +31,7 @@ import { Stack, usePathname, useRouter } from "expo-router";
 import type { HeroUINativeConfig } from "heroui-native";
 import { HeroUINativeProvider } from "heroui-native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind, useUniwind } from "uniwind";
 import "../global.css";
@@ -204,18 +204,6 @@ export default function TabLayout() {
     return () => {
       isMounted = false;
     };
-  }, []);
-
-  useEffect(() => {
-    if (Platform.OS !== "ios") {
-      return;
-    }
-
-    void import("react-native-google-mobile-ads")
-      .then(({ default: mobileAds }) => mobileAds().initialize())
-      .catch((error) => {
-        console.error("Failed to initialize mobile ads:", error);
-      });
   }, []);
 
   useEffect(() => {

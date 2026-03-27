@@ -3,7 +3,6 @@ import { track } from "@/lib/analytics";
 import { consumeInitialHomeData } from "@/lib/home-bootstrap";
 import { SubscriptionCard } from "@/components/subscriptions/subscription-card";
 import { SubscriptionCategoryFilter } from "@/components/subscriptions/subscription-category-filter";
-import { SubscriptionSummaryNativeAd } from "@/components/subscriptions/subscription-summary-native-ad";
 import { SubscriptionSortSelect } from "@/components/subscriptions/subscription-sort-select";
 import { SubscriptionSummaryCard } from "@/components/subscriptions/subscription-summary-card";
 import { hapticImpactLight } from "@/lib/haptics";
@@ -348,7 +347,6 @@ export default function HomeRoute() {
                 subscriptions={subscriptions ?? []}
                 changeDescription={summaryChangeDescription}
               />
-              <SubscriptionSummaryNativeAd />
 
               <Text className="mb-3 mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">
                 구독 목록
