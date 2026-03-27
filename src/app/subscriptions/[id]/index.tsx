@@ -1,16 +1,17 @@
-import { useAppSettings } from "@/lib/app-settings";
-import { track } from "@/lib/analytics";
+import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { SubscriptionStatisticsSummaryTile } from "@/components/subscriptions/subscription-statistics-summary-tile";
 import { SubscriptionStatisticsTrendChart } from "@/components/subscriptions/subscription-statistics-trend-chart";
+import { track } from "@/lib/analytics";
+import { useAppSettings } from "@/lib/app-settings";
 import { hapticImpactLight } from "@/lib/haptics";
-import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
-import { getSubscriptionStatisticsDetail } from "@/lib/subscription-statistics";
 import { resolveId } from "@/lib/subscription-editor";
 import {
   formatAmount,
   formatAmountParts,
   formatYmd,
 } from "@/lib/subscription-format";
+import { syncSubscriptionNotifications } from "@/lib/subscription-notifications";
+import { getSubscriptionStatisticsDetail } from "@/lib/subscription-statistics";
 import {
   deleteSubscription,
   getSubscriptionById,
@@ -20,7 +21,6 @@ import {
   type SubscriptionPaymentLog,
   type SubscriptionWithCategory,
 } from "@/lib/subscription-store";
-import { SubscriptionServiceBadge } from "@/components/subscriptions/subscription-service-badge";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Card, Separator } from "heroui-native";
@@ -316,6 +316,11 @@ export default function SubscriptionDetailRoute() {
                       subscription.billingCycle,
                     )}
                   />
+                  {subscription.memo ? (
+                    <Text className="text-center text-sm text-foreground/45 mt-3">
+                      {subscription.memo}
+                    </Text>
+                  ) : null}
                 </Card.Footer>
               </Card>
 
