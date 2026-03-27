@@ -1,6 +1,6 @@
-import { useAppSettings } from "@/lib/app-settings";
-import { track } from "@/lib/analytics";
 import { ThemeModeTabs } from "@/components/settings/theme-mode-tabs";
+import { track } from "@/lib/analytics";
+import { useAppSettings } from "@/lib/app-settings";
 import { hapticSelection } from "@/lib/haptics";
 import {
   getNotificationPermissionGrantedAsync,
@@ -11,7 +11,7 @@ import { seedScreenshotSubscriptions } from "@/lib/subscription-store";
 import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useRouter } from "expo-router";
 import { Button, ListGroup, Separator, Switch } from "heroui-native";
-import { BellIcon, FlaskConicalIcon, HandIcon, SunIcon } from "lucide-uniwind";
+import { BellIcon, BlocksIcon, FlagIcon, FlaskConicalIcon, HandIcon, PresentationIcon, StarIcon, SunIcon } from "lucide-uniwind";
 import {
   useCallback,
   useMemo,
@@ -19,7 +19,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { Alert, Linking, ScrollView, Text, View } from "react-native";
 
 interface SettingItem {
   id: string;
@@ -118,6 +118,22 @@ export default function SettingsRoute() {
     );
   }, [handleSeedScreenshotData]);
 
+  const handleOpenReportEmail = useCallback(async () => {
+    try {
+      await Linking.openURL("mailto:yemson@icloud.com");
+    } catch {
+      Alert.alert("오류", "메일 앱을 열 수 없습니다.");
+    }
+  }, []);
+
+  const handleOpenAppStore = useCallback(async () => {
+    try {
+      await Linking.openURL("https://apps.apple.com/kr/app/moss/id6760577624");
+    } catch {
+      Alert.alert("오류", "App Store를 열 수 없습니다.");
+    }
+  }, []);
+
   const sections = useMemo<SettingSection[]>(
     () => [
       {
@@ -130,7 +146,7 @@ export default function SettingsRoute() {
             description:
               isNotificationPermissionGranted === false
                 ? "시스템 설정에서 알림을 허용해주세요."
-                : "",
+                : "구독 결제 전 알림을 받습니다.",
             icon: BellIcon,
             onPress:
               isNotificationPermissionGranted === false
@@ -179,7 +195,8 @@ export default function SettingsRoute() {
           {
             id: "category-management",
             title: "카테고리 관리",
-            description: "직접 만든 카테고리를 추가하고 정리합니다.",
+            icon: BlocksIcon,
+            description: "카테고리를 추가하여 구독을 분류합니다.",
             onPress: () => {
               router.push("/settings/categories");
             },
@@ -192,12 +209,31 @@ export default function SettingsRoute() {
         items: [
           {
             id: "onboarding",
-            title: "온보딩 다시 보기",
-            description: "앱 소개 화면을 처음부터 다시 확인합니다.",
+            title: "앱 소개 다시 보기",
+            description: "앱 소개를 다시 보고 주요 기능을 확인합니다.",
+            icon: PresentationIcon,
             onPress: () => {
               track("onboarding_reopened");
               setHasCompletedOnboarding(false);
               router.replace("/onboarding");
+            },
+          },
+          {
+            id: "report",
+            title: "제보하기",
+            description: "의견이나 버그를 이메일로 보내주세요.",
+            icon: FlagIcon,
+            onPress: () => {
+              void handleOpenReportEmail();
+            },
+          },
+          {
+            id: "app-store-review",
+            title: "평점 남기기",
+            description: "평점은 앱 개선에 큰 도움이 됩니다.",
+            icon: StarIcon,
+            onPress: () => {
+              void handleOpenAppStore();
             },
           },
         ],
@@ -253,6 +289,8 @@ export default function SettingsRoute() {
     [
       handleSeedScreenshotDataPress,
       handleNotificationsEnabledChange,
+      handleOpenAppStore,
+      handleOpenReportEmail,
       isNotificationPermissionGranted,
       isSeedingScreenshotData,
       notificationsEnabled,
